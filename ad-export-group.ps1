@@ -17,12 +17,20 @@ function Get-FolderAccess {
     param (
         [string]$groupName,
         [string]$folderPath,
-        [int]$maxDepth = 3
+        [int]$maxDepth = 2
     )
 
     Write-Host "Entering Get-FolderAccess function for group: $groupName"
 
     $accessList = @()
+
+    # Check access to the root folder
+    $rootAcl = Get-Acl -Path $folderPath
+    $rootGroups = $rootAcl.Access | ForEach-Object { $_.IdentityReference.Value }
+    if ($rootGroups -contains $groupName) {
+        $accessList += $folderPath
+    }
+
     $folders = Get-ChildItem -Path $folderPath -Directory -Recurse -Depth $maxDepth
 
     foreach ($folder in $folders) {
@@ -238,10 +246,13 @@ try {
         $excelFile = $saveFileDialog.FileName
     }
 
-    $excelData.GetEnumerator() | ForEach-Object {
+    # Sort the sheet names alphabetically
+    $sortedExcelData = $excelData.GetEnumerator() | Sort-Object Key
+
+    $sortedExcelData | ForEach-Object {
         $sheetName = $_.Key
-        $members = $_.Value.Members
-        $folders = $_.Value.Folders
+        $members = $_.Value.Members | Sort-Object
+        $folders = $_.Value.Folders | Sort-Object
 
         $worksheetExists = $false
         if (Test-Path $excelFile) {
