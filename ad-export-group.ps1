@@ -1,18 +1,14 @@
-# Load necessary assemblies
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.DirectoryServices
 
-# Ensure the ImportExcel module is installed
 if (-not (Get-Module -ListAvailable -Name ImportExcel)) {
     Write-Host "The ImportExcel module is not installed. Running Install-Module command."
     $dialogResult = [System.Windows.Forms.MessageBox]::Show("ImportExcel module is not installed, Attempting to install. Please type 'A' in powershell to install.", "Required Module not installed", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
     Install-Module -Name ImportExcel -Scope CurrentUser
-    #exit
 }
 
 Write-Host "Starting the script..."
 
-# Define the Get-FolderAccess function
 function Get-FolderAccess {
     param (
         [string]$groupName,
@@ -24,7 +20,6 @@ function Get-FolderAccess {
 
     $accessList = @()
 
-    # Check access to the root folder
     $rootAcl = Get-Acl -Path $folderPath
     $rootGroups = $rootAcl.Access | ForEach-Object { $_.IdentityReference.Value }
     if ($rootGroups -contains $groupName) {
@@ -39,7 +34,6 @@ function Get-FolderAccess {
             continue
         }
 
-       #  Write-Host "Processing folder: $($folder.FullName)"
         $acl = Get-Acl -Path $folder.FullName
         $parentFolder = Get-Item -Path $folder.FullName | Select-Object -ExpandProperty Parent
 
@@ -52,10 +46,6 @@ function Get-FolderAccess {
 
         $folderGroups = $acl.Access | ForEach-Object { $_.IdentityReference.Value }
         $parentGroups = $parentAcl.Access | ForEach-Object { $_.IdentityReference.Value }
-
-       # Write-Host "Comparing folder: $($folder.FullName) to parent: $($parentFolder.FullName)"
-       # Write-Host "Folder groups: $($folderGroups -join ', ')"
-       # Write-Host "Parent groups: $($parentGroups -join ', ')"
 
         if ($folderGroups -ne $parentGroups) {
             foreach ($access in $acl.Access) {
@@ -71,7 +61,6 @@ function Get-FolderAccess {
 }
 
 try {
-    # Retrieve top-level OUs from the 'Dept' OU in AD
     $rootEntry = New-Object System.DirectoryServices.DirectoryEntry("LDAP://OU=Dept,DC=USERS,DC=CAMPUS")
     $searcher = New-Object System.DirectoryServices.DirectorySearcher($rootEntry)
     $searcher.Filter = "(objectClass=organizationalUnit)"
@@ -84,7 +73,6 @@ catch {
 }
 
 try {
-    # GUI to select the OU
     $form = New-Object System.Windows.Forms.Form
     $form.Text = "Select a Department"
     $form.Size = New-Object System.Drawing.Size(300, 400)
@@ -112,7 +100,6 @@ try {
         }
         $selectedTag = $listView.SelectedItems[0].Tag
 
-        # Check for the presence of 'distinguishedname'.
         if ($selectedTag -and $selectedTag.Properties -and $selectedTag.Properties['distinguishedname'] -and $selectedTag.Properties['distinguishedname'].Count -gt 0) {
             $form.Tag = $selectedTag
         }
@@ -171,11 +158,9 @@ catch {
 }
 
 try {
-    # Initialize a hashtable for Excel export
     $excelData = @{}
     $processedFolders = @{}
 
-    # For each group, fetch members and add to hashtable
     foreach ($group in $groups) {
         if ($null -eq $group.Properties.name) {
             Write-Host "Error: \group.Properties.name is null."
@@ -196,28 +181,23 @@ try {
             Write-Host "$groupName has no users"
         }
         else {
-            # Extract the department name from the distinguishedName
             $department = $selectedOU -split ',' | Select-Object -First 1
             $departmentName = $department -split '=' | Select-Object -Last 1
 
-            # Construct the full folder path
             $folderPath = "\\catfiles.users.campus\workarea$\" + $departmentName
 
             Write-Host "Folder Path: $folderPath"
 
-            # Check if the folder has already been processed
             if (-not $processedFolders.ContainsKey($folderPath)) {
                 $processedFolders[$folderPath] = @()
             }
 
-            # Add members to hashtable
             Write-Host "Adding users from $groupName"
             $excelData[$groupName] = @{
                 Members = $groupMembers
                 Folders = Get-FolderAccess -groupName $groupName -folderPath $folderPath
             }
 
-            # Add the group to the processed folders
             $processedFolders[$folderPath] += $groupName
         }
     }
@@ -246,7 +226,6 @@ try {
         $excelFile = $saveFileDialog.FileName
     }
 
-    # Sort the sheet names alphabetically
     $sortedExcelData = $excelData.GetEnumerator() | Sort-Object Key
 
     $sortedExcelData | ForEach-Object {
