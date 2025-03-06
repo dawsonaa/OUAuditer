@@ -166,6 +166,7 @@ try {
     $excelData = @{}
     $processedFolders = @{}
     $allGroupNames = @()
+    $groupsWithNoUsers = @()
     $folderPath = ""
 
     foreach ($group in $groups) {
@@ -186,6 +187,7 @@ try {
 
         if ($null -eq $groupMembers) {
             Write-Host "$groupName has no users"
+            $groupsWithNoUsers += $groupName
         }
         else {
             $department = $selectedOU -split ',' | Select-Object -First 1
@@ -244,6 +246,9 @@ try {
     }
 
     $sortedExcelData = $excelData.GetEnumerator() | Sort-Object Key
+
+    # Export groups with no users to a new sheet
+    $groupsWithNoUsers | Export-Excel -Path $excelFile -WorksheetName "groups without users"
 
     $sortedExcelData | ForEach-Object {
         $sheetName = $_.Key
