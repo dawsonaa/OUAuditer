@@ -1,5 +1,6 @@
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.DirectoryServices
+Add-Type -AssemblyName System.Collections
 
 if (-not (Get-Module -ListAvailable -Name ImportExcel)) {
     Write-Host "The ImportExcel module is not installed. Running Install-Module command."
@@ -11,26 +12,30 @@ Write-Host "Starting the script..."
 
 function Get-FolderAccess {
     param (
-        [string]$groupName,
+        [string[]]$groupNames,
         [string]$folderPath,
         [int]$maxDepth = 2
     )
+    $startTime = [DateTime]::Now.Ticks
 
-    Write-Host "Entering Get-FolderAccess function for group: $groupName"
+    Write-Host "Getting folder access for groups: $($groupNames -join ', ')`nFolder Path: $folderPath`nMax Depth: $maxDepth`n"
 
-    $accessList = @()
+    $accessList = @{}
 
     $rootAcl = Get-Acl -Path $folderPath
     $rootGroups = $rootAcl.Access | ForEach-Object { $_.IdentityReference.Value }
-    if ($rootGroups -contains $groupName) {
-        $accessList += $folderPath
+
+    foreach ($groupName in $groupNames) {
+        $accessList[$groupName] = @()
+        if ($rootGroups -contains $groupName) {
+            $accessList[$groupName] += $folderPath
+        }
     }
 
     $folders = Get-ChildItem -Path $folderPath -Directory -Recurse -Depth $maxDepth
 
     foreach ($folder in $folders) {
         if ($null -eq $folder.FullName -or $folder.FullName -eq "") {
-            Write-Host "Skipping invalid folder path."
             continue
         }
 
@@ -38,7 +43,6 @@ function Get-FolderAccess {
         $parentFolder = Get-Item -Path $folder.FullName | Select-Object -ExpandProperty Parent
 
         if ($null -eq $parentFolder -or $parentFolder.FullName -eq "") {
-            Write-Host "Skipping folder with invalid parent path."
             continue
         }
 
@@ -48,15 +52,18 @@ function Get-FolderAccess {
         $parentGroups = $parentAcl.Access | ForEach-Object { $_.IdentityReference.Value }
 
         if ($folderGroups -ne $parentGroups) {
-            foreach ($access in $acl.Access) {
-                if ($access.IdentityReference -like "*$groupName*") {
-                    $accessList += $folder.FullName
-                    break
+            foreach ($groupName in $groupNames) {
+                foreach ($access in $acl.Access) {
+                    if ($access.IdentityReference -like "*$groupName*") {
+                        $accessList[$groupName] += $folder.FullName
+                        break
+                    }
                 }
             }
         }
     }
-
+    $endTime = [DateTime]::Now.Ticks
+    Write-Host ("Time taken to get folder access: " + (($endTime - $startTime) / 10000000) + " s")
     return $accessList
 }
 
@@ -137,11 +144,9 @@ try {
     $entry = New-Object DirectoryServices.DirectoryEntry $LDAPPath
     $searcherOU = New-Object DirectoryServices.DirectorySearcher $entry
 
-    Write-Host "Setting up the searcher object..."
     $searcherOU.Filter = "(objectClass=group)"
     $searcherOU.PageSize = 1000
 
-    Write-Host "Trying to retrieve all groups..."
     $groups = $searcherOU.FindAll()
     Write-Host "Groups retrieval complete."
 
@@ -160,6 +165,8 @@ catch {
 try {
     $excelData = @{}
     $processedFolders = @{}
+    $allGroupNames = @()
+    $folderPath = ""
 
     foreach ($group in $groups) {
         if ($null -eq $group.Properties.name) {
@@ -186,8 +193,6 @@ try {
 
             $folderPath = "\\catfiles.users.campus\workarea$\" + $departmentName
 
-            Write-Host "Folder Path: $folderPath"
-
             if (-not $processedFolders.ContainsKey($folderPath)) {
                 $processedFolders[$folderPath] = @()
             }
@@ -195,15 +200,27 @@ try {
             Write-Host "Adding users from $groupName"
             $excelData[$groupName] = @{
                 Members = $groupMembers
-                Folders = Get-FolderAccess -groupName $groupName -folderPath $folderPath
+                Folders = @()  # Initialize with an empty array
             }
 
             $processedFolders[$folderPath] += $groupName
+            $allGroupNames += $groupName
+        }
+    }
+
+    # Call Get-FolderAccess once with all group names
+    $folderAccessResults = Get-FolderAccess -groupNames $allGroupNames -folderPath $folderPath
+
+    # Distribute the results to the respective groups
+    foreach ($groupName in $allGroupNames) {
+        if ($folderAccessResults.ContainsKey($groupName)) {
+            $excelData[$groupName].Folders = $folderAccessResults[$groupName]
         }
     }
 }
 catch {
     Write-Host "Error processing groups or members: $_"
+    exit
 }
 
 try {
