@@ -1,6 +1,7 @@
+# Author: Dawson Adams (dawsonaa@ksu.edu)
+
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.DirectoryServices
-Add-Type -AssemblyName System.Collections
 
 if (-not (Get-Module -ListAvailable -Name ImportExcel)) {
     Write-Host "The ImportExcel module is not installed. Running Install-Module command."
@@ -202,7 +203,7 @@ try {
             Write-Host "Adding users from $groupName"
             $excelData[$groupName] = @{
                 Members = $groupMembers
-                Folders = @()  # Initialize with an empty array
+                Folders = @()
             }
 
             $processedFolders[$folderPath] += $groupName
@@ -210,10 +211,8 @@ try {
         }
     }
 
-    # Call Get-FolderAccess once with all group names
     $folderAccessResults = Get-FolderAccess -groupNames $allGroupNames -folderPath $folderPath
 
-    # Distribute the results to the respective groups
     foreach ($groupName in $allGroupNames) {
         if ($folderAccessResults.ContainsKey($groupName)) {
             $excelData[$groupName].Folders = $folderAccessResults[$groupName]
@@ -230,14 +229,13 @@ try {
         Write-Host "No data available for Excel export."
         exit
     }
-
+    Write-Host "Exporting to Excel..."
     $OUName = ($distinguishedName -split ',')[0].split('=')[1]
     $currentDate = Get-Date -Format "MM-dd-yyyy"
-
     $saveFileDialog = New-Object System.Windows.Forms.SaveFileDialog
     $saveFileDialog.InitialDirectory = [Environment]::GetFolderPath('Desktop')
     $saveFileDialog.Filter = "Excel files (*.xlsx)|*.xlsx"
-    $saveFileDialog.FileName = "$OUName-GroupExport-$currentDate.xlsx"
+    $saveFileDialog.FileName = "$OUName-OUAudit-$currentDate.xlsx"
 
     $saveFileOpen = $saveFileDialog.ShowDialog()
 
@@ -247,7 +245,6 @@ try {
 
     $sortedExcelData = $excelData.GetEnumerator() | Sort-Object Key
 
-    # Export groups with no users to a new sheet
     $groupsWithNoUsers | Export-Excel -Path $excelFile -WorksheetName "groups without users"
 
     $sortedExcelData | ForEach-Object {
