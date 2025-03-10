@@ -2,6 +2,7 @@
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.DirectoryServices
+Add-Type -AssemblyName System.Drawing
 
 if (-not (Get-Module -ListAvailable -Name ImportExcel)) {
     Write-Host "The ImportExcel module is not installed. Running Install-Module command."
@@ -101,33 +102,10 @@ try {
     }
     $form.Controls.Add($listView)
 
-    $textBox = New-Object System.Windows.Forms.TextBox
-    $textBox.Size = New-Object System.Drawing.Size(260, 20)
-    $textBox.Location = New-Object System.Drawing.Point(10, 320)
-    $form.Controls.Add($textBox)
-
-    $numericUpDown = New-Object System.Windows.Forms.NumericUpDown
-    $numericUpDown.Size = New-Object System.Drawing.Size(40, 20)
-    $numericUpDown.Location = New-Object System.Drawing.Point(230, 350)
-    $numericUpDown.Minimum = 1
-    $numericUpDown.Maximum = 10
-    $numericUpDown.Value = 2
-    $form.Controls.Add($numericUpDown)
-
-    $listView.Add_SelectedIndexChanged({
-        if ($listView.SelectedItems.Count -gt 0) {
-            $selectedTag = $listView.SelectedItems[0].Tag
-            if ($selectedTag -and $selectedTag.Properties -and $selectedTag.Properties['distinguishedname'] -and $selectedTag.Properties['distinguishedname'].Count -gt 0) {
-                $department = $selectedTag.Properties['distinguishedname'][0] -split ',' | Select-Object -First 1
-                $departmentName = $department -split '=' | Select-Object -Last 1
-                $textBox.Text = "\\catfiles.users.campus\workarea$\" + $departmentName
-            }
-        }
-    })
-
     $okButton = New-Object System.Windows.Forms.Button
     $okButton.Text = "OK"
     $okButton.Location = New-Object System.Drawing.Point(10, 350)
+    $okButton.Enabled = $false
     $okButton.Add_Click({
         if ($listView.SelectedItems.Count -eq 0) {
             Write-Host "No item selected inside the OK button click event."
@@ -153,6 +131,40 @@ try {
         $form.Dispose()
     })
     $form.Controls.Add($okButton)
+
+    $textBox = New-Object System.Windows.Forms.TextBox
+    $textBox.Size = New-Object System.Drawing.Size(260, 20)
+    $textBox.Location = New-Object System.Drawing.Point(10, 320)
+    $textBox.Text = "Department Root Folder Path"
+    $textBox.Enabled = $false
+    $form.Controls.Add($textBox)
+
+    $label = New-Object System.Windows.Forms.Label
+    $label.Text = "Max Folder Depth:"
+    $label.Size = New-Object System.Drawing.Size(100, 20)
+    $label.Location = New-Object System.Drawing.Point(130, 350)
+    $form.Controls.Add($label)
+
+    $numericUpDown = New-Object System.Windows.Forms.NumericUpDown
+    $numericUpDown.Size = New-Object System.Drawing.Size(40, 20)
+    $numericUpDown.Location = New-Object System.Drawing.Point(230, 350)
+    $numericUpDown.Minimum = 1
+    $numericUpDown.Maximum = 10
+    $numericUpDown.Value = 2
+    $form.Controls.Add($numericUpDown)
+
+    $listView.Add_SelectedIndexChanged({
+        if ($listView.SelectedItems.Count -gt 0) {
+            $selectedTag = $listView.SelectedItems[0].Tag
+            if ($selectedTag -and $selectedTag.Properties -and $selectedTag.Properties['distinguishedname'] -and $selectedTag.Properties['distinguishedname'].Count -gt 0) {
+                $department = $selectedTag.Properties['distinguishedname'][0] -split ',' | Select-Object -First 1
+                $departmentName = $department -split '=' | Select-Object -Last 1
+                $textBox.Text = "\\catfiles.users.campus\workarea$\" + $departmentName
+                $textBox.Enabled = $true
+                $okButton.Enabled = $true
+            }
+        }
+    })
 
     $result = $form.ShowDialog()
 }
