@@ -83,8 +83,11 @@ catch {
 try {
     $form = New-Object System.Windows.Forms.Form
     $form.Text = "Select a Department"
-    $form.Size = New-Object System.Drawing.Size(300, 450)
+    $form.Size = New-Object System.Drawing.Size(300, 420)
     $form.StartPosition = "CenterScreen"
+    $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
+    $form.MaximizeBox = $false
+    $form.MinimizeBox = $false
 
     $listView = New-Object System.Windows.Forms.ListView
     $listView.View = [System.Windows.Forms.View]::List
@@ -102,6 +105,14 @@ try {
     $textBox.Size = New-Object System.Drawing.Size(260, 20)
     $textBox.Location = New-Object System.Drawing.Point(10, 320)
     $form.Controls.Add($textBox)
+
+    $numericUpDown = New-Object System.Windows.Forms.NumericUpDown
+    $numericUpDown.Size = New-Object System.Drawing.Size(40, 20)
+    $numericUpDown.Location = New-Object System.Drawing.Point(230, 350)
+    $numericUpDown.Minimum = 1
+    $numericUpDown.Maximum = 10
+    $numericUpDown.Value = 2
+    $form.Controls.Add($numericUpDown)
 
     $listView.Add_SelectedIndexChanged({
         if ($listView.SelectedItems.Count -gt 0) {
@@ -135,6 +146,7 @@ try {
         $form.Tag = @{
             DistinguishedName = $selectedTag.Properties['distinguishedname'][0]
             FolderPath = $textBox.Text
+            MaxDepth = $numericUpDown.Value
         }
         $form.DialogResult = [System.Windows.Forms.DialogResult]::OK
         $form.Close()
@@ -153,9 +165,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
         $formTag = $form.Tag
         $distinguishedName = $formTag.DistinguishedName
         $folderPath = $formTag.FolderPath
-
-        Write-Host "Value of distinguishedName: $distinguishedName"
-        Write-Host "Folder Path: $folderPath"
+        $maxDepth = $formTag.MaxDepth
 
         if ($distinguishedName) {
             Write-Host "Attempting to retrieve groups from: $distinguishedName"
@@ -233,7 +243,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             }
         }
 
-        $folderAccessResults = Get-FolderAccess -groupNames $allGroupNames -folderPath $folderPath
+        $folderAccessResults = Get-FolderAccess -groupNames $allGroupNames -folderPath $folderPath -maxDepth $maxDepth
 
         foreach ($groupName in $allGroupNames) {
             if ($folderAccessResults.ContainsKey($groupName)) {
