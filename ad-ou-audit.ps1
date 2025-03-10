@@ -2,6 +2,7 @@
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.DirectoryServices
+Add-Type -AssemblyName System.Drawing
 
 if (-not (Get-Module -ListAvailable -Name ImportExcel)) {
     Write-Host "The ImportExcel module is not installed. Running Install-Module command."
@@ -83,8 +84,11 @@ catch {
 try {
     $form = New-Object System.Windows.Forms.Form
     $form.Text = "Select a Department"
-    $form.Size = New-Object System.Drawing.Size(300, 400)
+    $form.Size = New-Object System.Drawing.Size(300, 420)
     $form.StartPosition = "CenterScreen"
+    $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
+    $form.MaximizeBox = $false
+    $form.MinimizeBox = $false
 
     $listView = New-Object System.Windows.Forms.ListView
     $listView.View = [System.Windows.Forms.View]::List
@@ -100,7 +104,8 @@ try {
 
     $okButton = New-Object System.Windows.Forms.Button
     $okButton.Text = "OK"
-    $okButton.Location = New-Object System.Drawing.Point(10, 320)
+    $okButton.Location = New-Object System.Drawing.Point(10, 350)
+    $okButton.Enabled = $false
     $okButton.Add_Click({
         if ($listView.SelectedItems.Count -eq 0) {
             Write-Host "No item selected inside the OK button click event."
@@ -116,11 +121,50 @@ try {
             return
         }
 
+        $form.Tag = @{
+            DistinguishedName = $selectedTag.Properties['distinguishedname'][0]
+            FolderPath = $textBox.Text
+            MaxDepth = $numericUpDown.Value
+        }
         $form.DialogResult = [System.Windows.Forms.DialogResult]::OK
         $form.Close()
         $form.Dispose()
     })
     $form.Controls.Add($okButton)
+
+    $textBox = New-Object System.Windows.Forms.TextBox
+    $textBox.Size = New-Object System.Drawing.Size(260, 20)
+    $textBox.Location = New-Object System.Drawing.Point(10, 320)
+    $textBox.Text = "Department Root Folder Path"
+    $textBox.Enabled = $false
+    $form.Controls.Add($textBox)
+
+    $label = New-Object System.Windows.Forms.Label
+    $label.Text = "Max Folder Depth:"
+    $label.Size = New-Object System.Drawing.Size(100, 20)
+    $label.Location = New-Object System.Drawing.Point(130, 350)
+    $form.Controls.Add($label)
+
+    $numericUpDown = New-Object System.Windows.Forms.NumericUpDown
+    $numericUpDown.Size = New-Object System.Drawing.Size(40, 20)
+    $numericUpDown.Location = New-Object System.Drawing.Point(230, 350)
+    $numericUpDown.Minimum = 1
+    $numericUpDown.Maximum = 10
+    $numericUpDown.Value = 2
+    $form.Controls.Add($numericUpDown)
+
+    $listView.Add_SelectedIndexChanged({
+        if ($listView.SelectedItems.Count -gt 0) {
+            $selectedTag = $listView.SelectedItems[0].Tag
+            if ($selectedTag -and $selectedTag.Properties -and $selectedTag.Properties['distinguishedname'] -and $selectedTag.Properties['distinguishedname'].Count -gt 0) {
+                $department = $selectedTag.Properties['distinguishedname'][0] -split ',' | Select-Object -First 1
+                $departmentName = $department -split '=' | Select-Object -Last 1
+                $textBox.Text = "\\catfiles.users.campus\workarea$\" + $departmentName
+                $textBox.Enabled = $true
+                $okButton.Enabled = $true
+            }
+        }
+    })
 
     $result = $form.ShowDialog()
 }
@@ -128,151 +172,152 @@ catch {
     Write-Host "Error with GUI or OU selection: $_"
 }
 
-try {
-    Write-Host "Value of distinguishedName: $($form.Tag.Properties['distinguishedName'][0])"
-    $distinguishedName = $form.Tag.Properties["distinguishedName"][0]
-    if ($form.Tag -and $form.Tag.Properties -and $form.Tag.Properties['distinguishedname']) {
-        $selectedOU = $form.Tag.Properties["distinguishedName"][0].ToString()
-        Write-Host "Attempting to retrieve groups from: $selectedOU"
+if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
+    try {
+        $formTag = $form.Tag
+        $distinguishedName = $formTag.DistinguishedName
+        $folderPath = $formTag.FolderPath
+        $maxDepth = $formTag.MaxDepth
+
+        if ($distinguishedName) {
+            Write-Host "Attempting to retrieve groups from: $distinguishedName"
+        }
+        else {
+            Write-Host "No OU was selected or the selected OU does not have a valid distinguished name."
+            exit
+        }
+
+        $selectedOUEntry = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$distinguishedName")
+        $LDAPPath = "LDAP://$distinguishedName"
+        $entry = New-Object DirectoryServices.DirectoryEntry $LDAPPath
+        $searcherOU = New-Object DirectoryServices.DirectorySearcher $entry
+
+        $searcherOU.Filter = "(objectClass=group)"
+        $searcherOU.PageSize = 1000
+
+        $groups = $searcherOU.FindAll()
+        Write-Host "Groups retrieval complete."
+
+        if ($null -eq $groups) {
+            Write-Host "Error: \$groups is null."
+        }
+        elseif ($groups.Count -eq 0) {
+            Write-Host "Error: No groups found in selected OU."
+        }
     }
-    else {
-        Write-Host "No OU was selected or the selected OU does not have a valid distinguished name."
+    catch {
+        Write-Host "Error retrieving groups from selected OU: $_"
         exit
     }
 
-    $selectedOUEntry = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$selectedOU")
-    $LDAPPath = "LDAP://$($form.Tag.Properties['distinguishedname'][0])"
-    $entry = New-Object DirectoryServices.DirectoryEntry $LDAPPath
-    $searcherOU = New-Object DirectoryServices.DirectorySearcher $entry
+    try {
+        $excelData = @{}
+        $processedFolders = @{}
+        $allGroupNames = @()
+        $groupsWithNoUsers = @()
 
-    $searcherOU.Filter = "(objectClass=group)"
-    $searcherOU.PageSize = 1000
-
-    $groups = $searcherOU.FindAll()
-    Write-Host "Groups retrieval complete."
-
-    if ($null -eq $groups) {
-        Write-Host "Error: \$groups is null."
-    }
-    elseif ($groups.Count -eq 0) {
-        Write-Host "Error: No groups found in selected OU."
-    }
-}
-catch {
-    Write-Host "Error retrieving groups from selected OU: $_"
-    exit
-}
-
-try {
-    $excelData = @{}
-    $processedFolders = @{}
-    $allGroupNames = @()
-    $groupsWithNoUsers = @()
-    $folderPath = ""
-
-    foreach ($group in $groups) {
-        if ($null -eq $group.Properties.name) {
-            Write-Host "Error: \group.Properties.name is null."
-        }
-
-        $groupName = $group.Properties.name[0].ToString()
-        $groupEntry = $group.GetDirectoryEntry()
-
-        if ($null -eq $groupEntry) {
-            Write-Host "Error: \groupEntry is null."
-        }
-
-        $groupMembers = $groupEntry.psbase.Invoke("Members") | ForEach-Object {
-            ($_.GetType().InvokeMember("Name", 'GetProperty', $null, $_, $null)) -replace '^CN=', ''
-        }
-
-        if ($null -eq $groupMembers) {
-            Write-Host "$groupName has no users"
-            $groupsWithNoUsers += $groupName
-        }
-        else {
-            $department = $selectedOU -split ',' | Select-Object -First 1
-            $departmentName = $department -split '=' | Select-Object -Last 1
-
-            $folderPath = "\\catfiles.users.campus\workarea$\" + $departmentName
-
-            if (-not $processedFolders.ContainsKey($folderPath)) {
-                $processedFolders[$folderPath] = @()
+        foreach ($group in $groups) {
+            if ($null -eq $group.Properties.name) {
+                Write-Host "Error: \group.Properties.name is null."
             }
 
-            Write-Host "Adding users from $groupName"
-            $excelData[$groupName] = @{
-                Members = $groupMembers
-                Folders = @()
+            $groupName = $group.Properties.name[0].ToString()
+            $groupEntry = $group.GetDirectoryEntry()
+
+            if ($null -eq $groupEntry) {
+                Write-Host "Error: \groupEntry is null."
             }
 
-            $processedFolders[$folderPath] += $groupName
-            $allGroupNames += $groupName
+            $groupMembers = $groupEntry.psbase.Invoke("Members") | ForEach-Object {
+                ($_.GetType().InvokeMember("Name", 'GetProperty', $null, $_, $null)) -replace '^CN=', ''
+            }
+
+            if ($null -eq $groupMembers) {
+                Write-Host "$groupName has no users"
+                $groupsWithNoUsers += $groupName
+            }
+            else {
+                $department = $distinguishedName -split ',' | Select-Object -First 1
+                $departmentName = $department -split '=' | Select-Object -Last 1
+
+                if (-not $processedFolders.ContainsKey($folderPath)) {
+                    $processedFolders[$folderPath] = @()
+                }
+
+                Write-Host "Adding users from $groupName"
+                $excelData[$groupName] = @{
+                    Members = $groupMembers
+                    Folders = @()
+                }
+
+                $processedFolders[$folderPath] += $groupName
+                $allGroupNames += $groupName
+            }
+        }
+
+        $folderAccessResults = Get-FolderAccess -groupNames $allGroupNames -folderPath $folderPath -maxDepth $maxDepth
+
+        foreach ($groupName in $allGroupNames) {
+            if ($folderAccessResults.ContainsKey($groupName)) {
+                $excelData[$groupName].Folders = $folderAccessResults[$groupName]
+            }
         }
     }
-
-    $folderAccessResults = Get-FolderAccess -groupNames $allGroupNames -folderPath $folderPath
-
-    foreach ($groupName in $allGroupNames) {
-        if ($folderAccessResults.ContainsKey($groupName)) {
-            $excelData[$groupName].Folders = $folderAccessResults[$groupName]
-        }
-    }
-}
-catch {
-    Write-Host "Error processing groups or members: $_"
-    exit
-}
-
-try {
-    if ($excelData.Count -eq 0) {
-        Write-Host "No data available for Excel export."
+    catch {
+        Write-Host "Error processing groups or members: $_"
         exit
     }
-    Write-Host "Exporting to Excel..."
-    $OUName = ($distinguishedName -split ',')[0].split('=')[1]
-    $currentDate = Get-Date -Format "MM-dd-yyyy"
-    $saveFileDialog = New-Object System.Windows.Forms.SaveFileDialog
-    $saveFileDialog.InitialDirectory = [Environment]::GetFolderPath('Desktop')
-    $saveFileDialog.Filter = "Excel files (*.xlsx)|*.xlsx"
-    $saveFileDialog.FileName = "$OUName-OUAudit-$currentDate.xlsx"
 
-    $saveFileOpen = $saveFileDialog.ShowDialog()
+    try {
+        if ($excelData.Count -eq 0) {
+            Write-Host "No data available for Excel export."
+            exit
+        }
+        Write-Host "Exporting to Excel..."
+        $OUName = ($distinguishedName -split ',')[0].split('=')[1]
+        $currentDate = Get-Date -Format "MM-dd-yyyy"
+        $saveFileDialog = New-Object System.Windows.Forms.SaveFileDialog
+        $saveFileDialog.InitialDirectory = [Environment]::GetFolderPath('Desktop')
+        $saveFileDialog.Filter = "Excel files (*.xlsx)|*.xlsx"
+        $saveFileDialog.FileName = "$OUName-OUAudit-$currentDate.xlsx"
 
-    if ($saveFileOpen -eq 'OK') {
-        $excelFile = $saveFileDialog.FileName
+        $saveFileOpen = $saveFileDialog.ShowDialog()
+
+        if ($saveFileOpen -eq 'OK') {
+            $excelFile = $saveFileDialog.FileName
+        }
+
+        $sortedExcelData = $excelData.GetEnumerator() | Sort-Object Key
+
+        $groupsWithNoUsers | Export-Excel -Path $excelFile -WorksheetName "groups without users"
+
+        $sortedExcelData | ForEach-Object {
+            $sheetName = $_.Key
+            $members = $_.Value.Members | Sort-Object
+            $folders = $_.Value.Folders | Sort-Object
+
+            $worksheetExists = $false
+            if (Test-Path $excelFile) {
+                $excelPackage = Open-ExcelPackage -Path $excelFile
+                $worksheetExists = ($excelPackage.Workbook.Worksheets.Name -contains $sheetName)
+                Close-ExcelPackage $excelPackage -Save:$false
+            }
+
+            if ($worksheetExists) {
+                $members | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append
+                $folders | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append -StartRow ($members.Count + 2)
+            }
+            else {
+                $members | Export-Excel -Path $excelFile -WorksheetName $sheetName
+                $folders | Export-Excel -Path $excelFile -WorksheetName $sheetName -StartRow ($members.Count + 2)
+            }
+        }
+
+        Write-Host "Exported to $excelFile"
+        Write-Host ""
+        Read-Host "Press Enter to close the window..."
     }
-
-    $sortedExcelData = $excelData.GetEnumerator() | Sort-Object Key
-
-    $groupsWithNoUsers | Export-Excel -Path $excelFile -WorksheetName "groups without users"
-
-    $sortedExcelData | ForEach-Object {
-        $sheetName = $_.Key
-        $members = $_.Value.Members | Sort-Object
-        $folders = $_.Value.Folders | Sort-Object
-
-        $worksheetExists = $false
-        if (Test-Path $excelFile) {
-            $excelPackage = Open-ExcelPackage -Path $excelFile
-            $worksheetExists = ($excelPackage.Workbook.Worksheets.Name -contains $sheetName)
-            Close-ExcelPackage $excelPackage -Save:$false
-        }
-
-        if ($worksheetExists) {
-            $members | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append
-            $folders | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append -StartRow ($members.Count + 2)
-        }
-        else {
-            $members | Export-Excel -Path $excelFile -WorksheetName $sheetName
-            $folders | Export-Excel -Path $excelFile -WorksheetName $sheetName -StartRow ($members.Count + 2)
-        }
+    catch {
+        Write-Host "Error exporting to Excel: $_"
     }
-
-    Write-Host "Exported to $excelFile"
-    Write-Host ""
-    Read-Host "Press Enter to close the window..."
-}
-catch {
-    Write-Host "Error exporting to Excel: $_"
 }
