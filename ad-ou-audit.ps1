@@ -30,7 +30,7 @@ function Get-FolderAccess {
     foreach ($groupName in $groupNames) {
         $accessList[$groupName] = @()
         if ($rootGroups -contains $groupName) {
-            $accessList[$groupName] += $folderPath
+            $accessList[$groupName] += [PSCustomObject]@{ Folder = $folderPath; AccessType = $_.FileSystemRights }
         }
     }
 
@@ -57,7 +57,7 @@ function Get-FolderAccess {
             foreach ($groupName in $groupNames) {
                 foreach ($access in $acl.Access) {
                     if ($access.IdentityReference -like "*$groupName*") {
-                        $accessList[$groupName] += $folder.FullName
+                        $accessList[$groupName] += [PSCustomObject]@{ Folder = $folder.FullName; AccessType = $access.FileSystemRights }
                         break
                     }
                 }
@@ -337,13 +337,23 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
 
             if ($worksheetExists) {
                 $members | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append
-                $folders | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append -StartRow ($members.Count + 2)
+                $folders | ForEach-Object {
+                    [PSCustomObject]@{ Folder = $_.Folder; 'Access Type' = $_.AccessType } | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append -StartRow ($members.Count + 2)
+                }
             }
             else {
                 $members | Export-Excel -Path $excelFile -WorksheetName $sheetName
-                $folders | Export-Excel -Path $excelFile -WorksheetName $sheetName -StartRow ($members.Count + 2)
+                $folders | ForEach-Object {
+                    [PSCustomObject]@{ Folder = $_.Folder; 'Access Type' = $_.AccessType } | Export-Excel -Path $excelFile -WorksheetName $sheetName -StartRow ($members.Count + 2)
+                }
             }
         }
+
+        $excelPackage = Open-ExcelPackage -Path $excelFile
+        foreach ($worksheet in $excelPackage.Workbook.Worksheets) {
+            $worksheet.Cells.AutoFitColumns()
+        }
+        Close-ExcelPackage -ExcelPackage $excelPackage
 
         Add-LegendSheet -excelFile $excelFile
 
