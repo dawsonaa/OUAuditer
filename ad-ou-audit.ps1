@@ -71,33 +71,55 @@ function Get-FolderAccess {
 
 function Add-LegendSheet {
     param (
-        [string]$excelFile
+        [string]$excelFile,
+        [string]$folderPath,
+        [string]$distinguishedName
     )
 
     $excelPackage = Open-ExcelPackage -Path $excelFile
 
     $legendSheet = $excelPackage.Workbook.Worksheets.Add("Legend")
 
-    $legendSheet.Cells["A1"].Value = "Add user or file location to group"
-    $legendSheet.Cells["A2"].Value = "Remove user or file location from group"
+    # Add a bold "Title" at the top
+    $legendSheet.Cells["A1"].Value = "AD OU Audit for"
+    $legendSheet.Cells["A1"].Style.Font.Bold = $true
 
-    $legendSheet.Cells["B1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
-    $legendSheet.Cells["B1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGreen)
+    $legendSheet.Cells["A2"].Value = "Folder Path"
+    $legendSheet.Cells["B2"].Value = $folderPath
+    $legendSheet.Cells["A3"].Value = "Distinguished Name"
+    $legendSheet.Cells["B3"].Value = $distinguishedName
 
-    $legendSheet.Cells["B2"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
-    $legendSheet.Cells["B2"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Red)
+    # Move the rest of the information down by one row
+    $legendSheet.Cells["A4"].Value = ""
+    $legendSheet.Cells["A5"].Value = "Instructions"
+    $legendSheet.Cells["A5"].Style.Font.Bold = $true
+    $legendSheet.Cells["A6"].Value = "Go through each group and use the below colors to mark groups/locations as needed."
 
-    $legendSheet.Cells["A3"].Value = ""
-    $legendSheet.Cells["A4"].Value = "Please provide the full file path, e.g."
-    $legendSheet.Cells["A5"].Value = "\\catfiles.users.campus\workarea$\Dept\Folder\Location"
+    $legendSheet.Cells["A8"].Value = "Group Actions"
+    $legendSheet.Cells["A8"].Style.Font.Bold = $true
 
-    $legendSheet.Cells["A1:A2"].Style.Font.Bold = $true
-    $legendSheet.Cells["A4"].Style.Font.Bold = $true
+    $legendSheet.Cells["A9"].Value = "Add user or file location to group"
+    $legendSheet.Cells["A10"].Value = "Remove user or file location from group"
+
+    $legendSheet.Cells["B9"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+    $legendSheet.Cells["B9"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGreen)
+
+    $legendSheet.Cells["B10"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+    $legendSheet.Cells["B10"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Red)
+
+    $legendSheet.Cells["A11"].Value = ""
+    $legendSheet.Cells["A12"].Value = "Please provide the full file path, e.g."
+    $legendSheet.Cells["A13"].Value = "\\catfiles.users.campus\workarea$\Dept\Folder\Location"
+
+    $legendSheet.Cells["A12"].Style.Font.Bold = $true
 
     $legendSheet.Cells["A:B"].AutoFitColumns()
 
-    $legendSheet.Cells["A7"].Value = "Access Types Dictionary"
-    $legendSheet.Cells["A7"].Style.Font.Bold = $true
+    $legendSheet.Cells["A15"].Value = "Provide specific access type information if necessary, e.g."
+    $legendSheet.Cells["A15"].Style.Font.Bold = $true
+
+    $legendSheet.Cells["B15"].Value = "Access Type Description"
+    $legendSheet.Cells["B15"].Style.Font.Bold = $true
 
     $accessTypes = [ordered]@{
         "FullControl" = "Allows full control over a file or directory, including reading, writing, changing permissions, and taking ownership."
@@ -119,7 +141,7 @@ function Add-LegendSheet {
         "Synchronize" = "Allows synchronizing access to a file or directory."
     }
 
-    $row = 8
+    $row = 16
     foreach ($key in $accessTypes.Keys) {
         $legendSheet.Cells["A$row"].Value = $key
         $legendSheet.Cells["B$row"].Value = $accessTypes[$key]
@@ -387,7 +409,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
         }
         Close-ExcelPackage -ExcelPackage $excelPackage
 
-        Add-LegendSheet -excelFile $excelFile
+        Add-LegendSheet -excelFile $excelFile -folderPath $folderPath -distinguishedName $distinguishedName
 
         Write-Host "Exported to $excelFile"
         Write-Host ""
