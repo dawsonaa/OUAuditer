@@ -30,7 +30,7 @@ function Get-FolderAccess {
     foreach ($groupName in $groupNames) {
         $accessList[$groupName] = @()
         if ($rootGroups -contains $groupName) {
-            $accessList[$groupName] += [PSCustomObject]@{ Folder = $folderPath; AccessType = $_.FileSystemRights }
+            $accessList[$groupName] += [PSCustomObject]@{ Folder = $folderPath; 'Access Types' = $_.FileSystemRights }
         }
     }
 
@@ -57,7 +57,7 @@ function Get-FolderAccess {
             foreach ($groupName in $groupNames) {
                 foreach ($access in $acl.Access) {
                     if ($access.IdentityReference -like "*$groupName*") {
-                        $accessList[$groupName] += [PSCustomObject]@{ Folder = $folder.FullName; AccessType = $access.FileSystemRights }
+                        $accessList[$groupName] += [PSCustomObject]@{ Folder = $folder.FullName; 'Access Types' = $access.FileSystemRights }
                         break
                     }
                 }
@@ -93,6 +93,43 @@ function Add-LegendSheet {
 
     $legendSheet.Cells["A1:A2"].Style.Font.Bold = $true
     $legendSheet.Cells["A4"].Style.Font.Bold = $true
+
+    $legendSheet.Cells["A:B"].AutoFitColumns()
+
+    $legendSheet.Cells["A7"].Value = "Access Types Dictionary"
+    $legendSheet.Cells["A7"].Style.Font.Bold = $true
+
+    $accessTypes = [ordered]@{
+        "FullControl" = "Allows full control over a file or directory, including reading, writing, changing permissions, and taking ownership."
+        "Modify" = "Allows reading, writing, executing, and deleting files and directories."
+        "ReadAndExecute" = "Allows reading and executing files."
+        "ListDirectory" = "Allows listing the contents of a folder."
+        "Read" = "Allows reading data from a file or listing contents of a directory."
+        "Write" = "Allows writing data to a file or adding files to a directory."
+        "Delete" = "Allows deleting a file or directory."
+        "ReadPermissions" = "Allows reading permissions of a file or directory."
+        "ChangePermissions" = "Allows changing permissions of a file or directory."
+        "TakeOwnership" = "Allows taking ownership of a file or directory."
+        "ReadAttributes" = "Allows reading basic attributes of a file or directory."
+        "WriteAttributes" = "Allows writing basic attributes of a file or directory."
+        "ReadExtendedAttributes" = "Allows reading extended attributes of a file or directory."
+        "WriteExtendedAttributes" = "Allows writing extended attributes of a file or directory."
+        "ExecuteFile" = "Allows executing a file or traversing a directory."
+        "DeleteSubdirectoriesAndFiles" = "Allows deleting subdirectories and files within a directory."
+        "Synchronize" = "Allows synchronizing access to a file or directory."
+    }
+
+    $row = 8
+    foreach ($key in $accessTypes.Keys) {
+        $legendSheet.Cells["A$row"].Value = $key
+        $legendSheet.Cells["B$row"].Value = $accessTypes[$key]
+        $row++
+    }
+    $row++
+
+    $legendSheet.Cells["A$row"].Value = "Disclaimer"
+    $legendSheet.Cells["B$row"].Value = "For more specific information on what the access types do, please refer to online resources such as Google."
+    $legendSheet.Cells["A$row:B$row"].Style.Font.Italic = $true
 
     $legendSheet.Cells["A:B"].AutoFitColumns()
 
@@ -337,15 +374,10 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
 
             if ($worksheetExists) {
                 $members | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append
-                $folders | ForEach-Object {
-                    [PSCustomObject]@{ Folder = $_.Folder; 'Access Type' = $_.AccessType } | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append -StartRow ($members.Count + 2)
-                }
-            }
-            else {
+                $folders | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append -StartRow ($members.Count + 2)
+            } else {
                 $members | Export-Excel -Path $excelFile -WorksheetName $sheetName
-                $folders | ForEach-Object {
-                    [PSCustomObject]@{ Folder = $_.Folder; 'Access Type' = $_.AccessType } | Export-Excel -Path $excelFile -WorksheetName $sheetName -StartRow ($members.Count + 2)
-                }
+                $folders | Export-Excel -Path $excelFile -WorksheetName $sheetName -StartRow ($members.Count + 2)
             }
         }
 
