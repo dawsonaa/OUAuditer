@@ -69,6 +69,38 @@ function Get-FolderAccess {
     return $accessList
 }
 
+function Add-LegendSheet {
+    param (
+        [string]$excelFile
+    )
+
+    $excelPackage = Open-ExcelPackage -Path $excelFile
+
+    $legendSheet = $excelPackage.Workbook.Worksheets.Add("Legend")
+
+    $legendSheet.Cells["A1"].Value = "Add user or file location to group"
+    $legendSheet.Cells["A2"].Value = "Remove user or file location from group"
+
+    $legendSheet.Cells["B1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+    $legendSheet.Cells["B1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGreen)
+
+    $legendSheet.Cells["B2"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+    $legendSheet.Cells["B2"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Red)
+
+    $legendSheet.Cells["A3"].Value = ""
+    $legendSheet.Cells["A4"].Value = "Please provide the full file path, e.g."
+    $legendSheet.Cells["A5"].Value = "\\catfiles.users.campus\workarea$\Dept\Folder\Location"
+
+    $legendSheet.Cells["A1:A2"].Style.Font.Bold = $true
+    $legendSheet.Cells["A4"].Style.Font.Bold = $true
+
+    $legendSheet.Cells["A:B"].AutoFitColumns()
+
+    $excelPackage.Workbook.Worksheets.MoveToStart($legendSheet)
+
+    Close-ExcelPackage $excelPackage
+}
+
 try {
     $rootEntry = New-Object System.DirectoryServices.DirectoryEntry("LDAP://OU=Dept,DC=USERS,DC=CAMPUS")
     $searcher = New-Object System.DirectoryServices.DirectorySearcher($rootEntry)
@@ -312,6 +344,8 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
                 $folders | Export-Excel -Path $excelFile -WorksheetName $sheetName -StartRow ($members.Count + 2)
             }
         }
+
+        Add-LegendSheet -excelFile $excelFile
 
         Write-Host "Exported to $excelFile"
         Write-Host ""
