@@ -382,6 +382,8 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
 
         $groupsWithNoUsers | Export-Excel -Path $excelFile -WorksheetName "groups without users"
 
+        $usersHeader = [PSCustomObject]@{ Users = "Users" }
+
         $sortedExcelData | ForEach-Object {
             $sheetName = $_.Key
             $members = $_.Value.Members | Sort-Object
@@ -395,16 +397,23 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             }
 
             if ($worksheetExists) {
-                $members | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append
-                $folders | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append -StartRow ($members.Count + 2)
+                $usersHeader | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append
+                $members | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append -StartRow 2
+                $folders | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append -StartRow ($members.Count + 3)
+
             } else {
-                $members | Export-Excel -Path $excelFile -WorksheetName $sheetName
-                $folders | Export-Excel -Path $excelFile -WorksheetName $sheetName -StartRow ($members.Count + 2)
+                $usersHeader | Export-Excel -Path $excelFile -WorksheetName $sheetName
+                $members | Export-Excel -Path $excelFile -WorksheetName $sheetName -StartRow 2
+                $folders | Export-Excel -Path $excelFile -WorksheetName $sheetName -StartRow ($members.Count + 3)
             }
         }
 
         $excelPackage = Open-ExcelPackage -Path $excelFile
         foreach ($worksheet in $excelPackage.Workbook.Worksheets) {
+            $worksheet.Cells["A1"].Style.Font.Bold = $true
+            #$worksheet.Cells["A1"].Style.Font.Size = 14
+            $worksheet.Cells["A1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+            $worksheet.Cells["A1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
             $worksheet.Cells.AutoFitColumns()
         }
         Close-ExcelPackage -ExcelPackage $excelPackage
