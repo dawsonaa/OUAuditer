@@ -30,7 +30,7 @@ function Get-FolderAccess {
     foreach ($groupName in $groupNames) {
         $accessList[$groupName] = @()
         if ($rootGroups -contains $groupName) {
-            $accessList[$groupName] += $folderPath
+            $accessList[$groupName] += [PSCustomObject]@{ Folder = $folderPath; 'Access Types' = $_.FileSystemRights }
         }
     }
 
@@ -57,7 +57,7 @@ function Get-FolderAccess {
             foreach ($groupName in $groupNames) {
                 foreach ($access in $acl.Access) {
                     if ($access.IdentityReference -like "*$groupName*") {
-                        $accessList[$groupName] += $folder.FullName
+                        $accessList[$groupName] += [PSCustomObject]@{ Folder = $folder.FullName; 'Access Types' = $access.FileSystemRights }
                         break
                     }
                 }
@@ -67,6 +67,97 @@ function Get-FolderAccess {
     $endTime = [DateTime]::Now.Ticks
     Write-Host ("Time taken to get folder access: " + (($endTime - $startTime) / 10000000) + " s")
     return $accessList
+}
+
+function Add-LegendSheet {
+    param (
+        [string]$excelFile,
+        [string]$folderPath,
+        [string]$distinguishedName
+    )
+
+    $excelPackage = Open-ExcelPackage -Path $excelFile
+
+    $legendSheet = $excelPackage.Workbook.Worksheets.Add("Legend")
+
+    # Add a bold "Title" at the top
+    $legendSheet.Cells["A1"].Value = "AD OU Audit for"
+    $legendSheet.Cells["A1"].Style.Font.Bold = $true
+
+    $legendSheet.Cells["A2"].Value = "Folder Path"
+    $legendSheet.Cells["B2"].Value = $folderPath
+    $legendSheet.Cells["A3"].Value = "Distinguished Name"
+    $legendSheet.Cells["B3"].Value = $distinguishedName
+
+    # Move the rest of the information down by one row
+    $legendSheet.Cells["A4"].Value = ""
+    $legendSheet.Cells["A5"].Value = "Instructions"
+    $legendSheet.Cells["A5"].Style.Font.Bold = $true
+    $legendSheet.Cells["A6"].Value = "Go through each group and use the below colors to mark groups/locations as needed."
+
+    $legendSheet.Cells["A8"].Value = "Group Actions"
+    $legendSheet.Cells["A8"].Style.Font.Bold = $true
+
+    $legendSheet.Cells["A9"].Value = "Add user or file location to group"
+    $legendSheet.Cells["A10"].Value = "Remove user or file location from group"
+
+    $legendSheet.Cells["B9"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+    $legendSheet.Cells["B9"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGreen)
+
+    $legendSheet.Cells["B10"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+    $legendSheet.Cells["B10"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Red)
+
+    $legendSheet.Cells["A11"].Value = ""
+    $legendSheet.Cells["A12"].Value = "Please provide the full file path, e.g."
+    $legendSheet.Cells["A13"].Value = "\\catfiles.users.campus\workarea$\Dept\Folder\Location"
+
+    $legendSheet.Cells["A12"].Style.Font.Bold = $true
+
+    $legendSheet.Cells["A:B"].AutoFitColumns()
+
+    $legendSheet.Cells["A15"].Value = "Provide specific access type information if necessary, e.g."
+    $legendSheet.Cells["A15"].Style.Font.Bold = $true
+
+    $legendSheet.Cells["B15"].Value = "Access Type Description"
+    $legendSheet.Cells["B15"].Style.Font.Bold = $true
+
+    $accessTypes = [ordered]@{
+        "FullControl" = "Allows full control over a file or directory, including reading, writing, changing permissions, and taking ownership."
+        "Modify" = "Allows reading, writing, executing, and deleting files and directories."
+        "ReadAndExecute" = "Allows reading and executing files."
+        "ListDirectory" = "Allows listing the contents of a folder."
+        "Read" = "Allows reading data from a file or listing contents of a directory."
+        "Write" = "Allows writing data to a file or adding files to a directory."
+        "Delete" = "Allows deleting a file or directory."
+        "ReadPermissions" = "Allows reading permissions of a file or directory."
+        "ChangePermissions" = "Allows changing permissions of a file or directory."
+        "TakeOwnership" = "Allows taking ownership of a file or directory."
+        "ReadAttributes" = "Allows reading basic attributes of a file or directory."
+        "WriteAttributes" = "Allows writing basic attributes of a file or directory."
+        "ReadExtendedAttributes" = "Allows reading extended attributes of a file or directory."
+        "WriteExtendedAttributes" = "Allows writing extended attributes of a file or directory."
+        "ExecuteFile" = "Allows executing a file or traversing a directory."
+        "DeleteSubdirectoriesAndFiles" = "Allows deleting subdirectories and files within a directory."
+        "Synchronize" = "Allows synchronizing access to a file or directory."
+    }
+
+    $row = 16
+    foreach ($key in $accessTypes.Keys) {
+        $legendSheet.Cells["A$row"].Value = $key
+        $legendSheet.Cells["B$row"].Value = $accessTypes[$key]
+        $row++
+    }
+    $row++
+
+    $legendSheet.Cells["A$row"].Value = "Disclaimer"
+    $legendSheet.Cells["B$row"].Value = "For more specific information on what the access types do, please refer to online resources such as Google."
+    $legendSheet.Cells["A$row:B$row"].Style.Font.Italic = $true
+
+    $legendSheet.Cells["A:B"].AutoFitColumns()
+
+    $excelPackage.Workbook.Worksheets.MoveToStart($legendSheet)
+
+    Close-ExcelPackage $excelPackage
 }
 
 try {
@@ -306,12 +397,19 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             if ($worksheetExists) {
                 $members | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append
                 $folders | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append -StartRow ($members.Count + 2)
-            }
-            else {
+            } else {
                 $members | Export-Excel -Path $excelFile -WorksheetName $sheetName
                 $folders | Export-Excel -Path $excelFile -WorksheetName $sheetName -StartRow ($members.Count + 2)
             }
         }
+
+        $excelPackage = Open-ExcelPackage -Path $excelFile
+        foreach ($worksheet in $excelPackage.Workbook.Worksheets) {
+            $worksheet.Cells.AutoFitColumns()
+        }
+        Close-ExcelPackage -ExcelPackage $excelPackage
+
+        Add-LegendSheet -excelFile $excelFile -folderPath $folderPath -distinguishedName $distinguishedName
 
         Write-Host "Exported to $excelFile"
         Write-Host ""
