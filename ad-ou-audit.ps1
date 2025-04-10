@@ -35,11 +35,14 @@ function Get-FolderAccess {
         }
     }
 
-    if ($recursive) {
-        $folders = Get-ChildItem -Path $folderPath -Directory -Recurse -Depth $folderDepth
+    if ($folderDepth -eq 0) {
+        $folders = @([PSCustomObject]@{ FullName = $folderPath })
+    }
+    elseif ($recursive) {
+        $folders = @([PSCustomObject]@{ FullName = $folderPath }) + (Get-ChildItem -Path $folderPath -Directory -Recurse)
     }
     else {
-        $folders = Get-ChildItem -Path $folderPath -Directory -Depth $($folderDepth - 1)
+        $folders = @([PSCustomObject]@{ FullName = $folderPath }) + (Get-ChildItem -Path $folderPath -Directory -Depth ($folderDepth - 1))
     }
 
     foreach ($folder in $folders) {
@@ -221,7 +224,7 @@ try {
     $numericUpDown = New-Object System.Windows.Forms.NumericUpDown
     $numericUpDown.Size = New-Object System.Drawing.Size(60, 20)
     $numericUpDown.Location = New-Object System.Drawing.Point(100, 350)
-    $numericUpDown.Minimum = 1
+    $numericUpDown.Minimum = 0
     $numericUpDown.Maximum = 10
     $numericUpDown.Value = 2
     $form.Controls.Add($numericUpDown)
