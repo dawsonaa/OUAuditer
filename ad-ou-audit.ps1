@@ -76,12 +76,15 @@ function Add-LegendSheet {
         [string]$distinguishedName
     )
 
+    $department = $distinguishedName -split ',' | Select-Object -First 1
+    $departmentName = $department -split '=' | Select-Object -Last 1
+    $currentDate = Get-Date -Format "MM-dd-yyyy"
+
     $excelPackage = Open-ExcelPackage -Path $excelFile
 
     $legendSheet = $excelPackage.Workbook.Worksheets.Add("Legend")
 
-    # Add a bold "Title" at the top
-    $legendSheet.Cells["A1"].Value = "AD OU Audit for"
+    $legendSheet.Cells["A1"].Value = "AD OU Audit for $departmentName $currentDate"
     $legendSheet.Cells["A1"].Style.Font.Bold = $true
 
     $legendSheet.Cells["A2"].Value = "Folder Path"
@@ -89,7 +92,6 @@ function Add-LegendSheet {
     $legendSheet.Cells["A3"].Value = "Distinguished Name"
     $legendSheet.Cells["B3"].Value = $distinguishedName
 
-    # Move the rest of the information down by one row
     $legendSheet.Cells["A4"].Value = ""
     $legendSheet.Cells["A5"].Value = "Instructions"
     $legendSheet.Cells["A5"].Style.Font.Bold = $true
@@ -371,11 +373,13 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
         $saveFileDialog.InitialDirectory = [Environment]::GetFolderPath('Desktop')
         $saveFileDialog.Filter = "Excel files (*.xlsx)|*.xlsx"
         $saveFileDialog.FileName = "$OUName-OUAudit-$currentDate.xlsx"
-
         $saveFileOpen = $saveFileDialog.ShowDialog()
 
         if ($saveFileOpen -eq 'OK') {
             $excelFile = $saveFileDialog.FileName
+            if (Test-Path -Path $excelFile) {
+                Remove-Item -Path $excelFile -Force
+            }
         }
 
         $sortedExcelData = $excelData.GetEnumerator() | Sort-Object Key
@@ -410,10 +414,31 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
 
         $excelPackage = Open-ExcelPackage -Path $excelFile
         foreach ($worksheet in $excelPackage.Workbook.Worksheets) {
+            if ($worksheet.Name -eq "groups without users") {
+                continue
+            }
+            $lastRow = $worksheet.Dimension.End.Row
+
             $worksheet.Cells["A1"].Style.Font.Bold = $true
-            #$worksheet.Cells["A1"].Style.Font.Size = 14
             $worksheet.Cells["A1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
             $worksheet.Cells["A1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
+            $worksheet.Cells["B1"].Style.Font.Bold = $true
+            $worksheet.Cells["B1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+            $worksheet.Cells["B1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
+
+            $done = 0
+            for ($row = 1; $row -le $lastRow; $row++) {
+                $cell = $worksheet.Cells[$row, 1]
+                if ($cell.Text -eq "Folder") {
+                    $cell.Style.Font.Bold = $true
+                    $cell.Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                    $cell.Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
+                    $worksheet.Cells[$row, 2].Style.Font.Bold = $true
+                    $worksheet.Cells[$row, 2].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                    $worksheet.Cells[$row, 2].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
+                    break
+                }
+            }
             $worksheet.Cells.AutoFitColumns()
         }
         Close-ExcelPackage -ExcelPackage $excelPackage
