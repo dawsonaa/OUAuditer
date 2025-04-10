@@ -16,7 +16,8 @@ function Get-FolderAccess {
     param (
         [string[]]$groupNames,
         [string]$folderPath,
-        [int]$folderDepth = 2
+        [int]$folderDepth = 2,
+        [bool]$recursive = $false
     )
     $startTime = [DateTime]::Now.Ticks
 
@@ -34,7 +35,12 @@ function Get-FolderAccess {
         }
     }
 
-    $folders = Get-ChildItem -Path $folderPath -Directory -Recurse -Depth $folderDepth
+    if ($recursive) {
+        $folders = Get-ChildItem -Path $folderPath -Directory -Recurse -Depth $folderDepth
+    }
+    else {
+        $folders = Get-ChildItem -Path $folderPath -Directory -Depth $($folderDepth - 1)
+    }
 
     foreach ($folder in $folders) {
         if ($null -eq $folder.FullName -or $folder.FullName -eq "") {
@@ -64,6 +70,7 @@ function Get-FolderAccess {
             }
         }
     }
+
     $endTime = [DateTime]::Now.Ticks
     Write-Host ("Time taken to get folder access: " + (($endTime - $startTime) / 10000000) + " s")
     return $accessList
@@ -257,7 +264,6 @@ try {
     })
     $form.Controls.Add($okButton)
 
-    # Update TextBox and enable OK Button on selection
     $listView.Add_SelectedIndexChanged({
         if ($listView.SelectedItems.Count -gt 0) {
             $selectedTag = $listView.SelectedItems[0].Tag
