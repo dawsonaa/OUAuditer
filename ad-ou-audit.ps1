@@ -16,11 +16,11 @@ function Get-FolderAccess {
     param (
         [string[]]$groupNames,
         [string]$folderPath,
-        [int]$maxDepth = 2
+        [int]$folderDepth = 2
     )
     $startTime = [DateTime]::Now.Ticks
 
-    Write-Host "Getting folder access for groups: $($groupNames -join ', ')`nFolder Path: $folderPath`nMax Depth: $maxDepth`n"
+    Write-Host "Getting folder access for groups: $($groupNames -join ', ')`nFolder Path: $folderPath`nFolder Depth: $folderDepth`n"
 
     $accessList = @{}
 
@@ -34,7 +34,7 @@ function Get-FolderAccess {
         }
     }
 
-    $folders = Get-ChildItem -Path $folderPath -Directory -Recurse -Depth $maxDepth
+    $folders = Get-ChildItem -Path $folderPath -Directory -Recurse -Depth $folderDepth
 
     foreach ($folder in $folders) {
         if ($null -eq $folder.FullName -or $folder.FullName -eq "") {
@@ -87,41 +87,44 @@ function Add-LegendSheet {
     $legendSheet.Cells["A1"].Value = "AD OU Audit for $departmentName $currentDate"
     $legendSheet.Cells["A1"].Style.Font.Bold = $true
 
-    $legendSheet.Cells["A2"].Value = "Folder Path"
-    $legendSheet.Cells["B2"].Value = $folderPath
-    $legendSheet.Cells["A3"].Value = "Distinguished Name"
-    $legendSheet.Cells["B3"].Value = $distinguishedName
+    $legendSheet.Cells["A2"].Value = "Distinguished Name"
+    $legendSheet.Cells["B2"].Value = $distinguishedName
+    $legendSheet.Cells["A3"].Value = "Folder Path"
+    $legendSheet.Cells["B3"].Value = $folderPath
+    $legendSheet.Cells["A4"].Value = "Folder Depth"
+    $legendSheet.Cells["B4"].Value = $folderDepth
+    $legendSheet.Cells["B4"].Style.HorizontalAlignment = [OfficeOpenXml.Style.ExcelHorizontalAlignment]::Left
 
-    $legendSheet.Cells["A4"].Value = ""
-    $legendSheet.Cells["A5"].Value = "Instructions"
-    $legendSheet.Cells["A5"].Style.Font.Bold = $true
-    $legendSheet.Cells["A6"].Value = "Go through each group and use the below colors to mark groups/locations as needed."
+    $legendSheet.Cells["A5"].Value = ""
+    $legendSheet.Cells["A6"].Value = "Instructions"
+    $legendSheet.Cells["A6"].Style.Font.Bold = $true
+    $legendSheet.Cells["A7"].Value = "Go through each group and use the below colors to mark groups/locations as needed."
 
-    $legendSheet.Cells["A8"].Value = "Group Actions"
-    $legendSheet.Cells["A8"].Style.Font.Bold = $true
+    $legendSheet.Cells["A9"].Value = "Group Actions"
+    $legendSheet.Cells["A9"].Style.Font.Bold = $true
 
-    $legendSheet.Cells["A9"].Value = "Add user or file location to group"
-    $legendSheet.Cells["A10"].Value = "Remove user or file location from group"
-
-    $legendSheet.Cells["B9"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
-    $legendSheet.Cells["B9"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGreen)
+    $legendSheet.Cells["A10"].Value = "Add user or file location to group"
+    $legendSheet.Cells["A11"].Value = "Remove user or file location from group"
 
     $legendSheet.Cells["B10"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
-    $legendSheet.Cells["B10"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Red)
+    $legendSheet.Cells["B10"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGreen)
 
-    $legendSheet.Cells["A11"].Value = ""
-    $legendSheet.Cells["A12"].Value = "Please provide the full file path, e.g."
-    $legendSheet.Cells["A13"].Value = "\\catfiles.users.campus\workarea$\Dept\Folder\Location"
+    $legendSheet.Cells["B11"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+    $legendSheet.Cells["B11"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Red)
 
-    $legendSheet.Cells["A12"].Style.Font.Bold = $true
+    $legendSheet.Cells["A12"].Value = ""
+    $legendSheet.Cells["A13"].Value = "Please provide the full file path, e.g."
+    $legendSheet.Cells["A14"].Value = "\\catfiles.users.campus\workarea$\Dept\Folder\Location"
+
+    $legendSheet.Cells["A13"].Style.Font.Bold = $true
 
     $legendSheet.Cells["A:B"].AutoFitColumns()
 
-    $legendSheet.Cells["A15"].Value = "Provide specific access type information if necessary, e.g."
-    $legendSheet.Cells["A15"].Style.Font.Bold = $true
+    $legendSheet.Cells["A16"].Value = "Provide specific access type information if necessary, e.g."
+    $legendSheet.Cells["A16"].Style.Font.Bold = $true
 
-    $legendSheet.Cells["B15"].Value = "Access Type Description"
-    $legendSheet.Cells["B15"].Style.Font.Bold = $true
+    $legendSheet.Cells["B16"].Value = "Access Type Description"
+    $legendSheet.Cells["B16"].Style.Font.Bold = $true
 
     $accessTypes = [ordered]@{
         "FullControl" = "Allows full control over a file or directory, including reading, writing, changing permissions, and taking ownership."
@@ -143,7 +146,7 @@ function Add-LegendSheet {
         "Synchronize" = "Allows synchronizing access to a file or directory."
     }
 
-    $row = 16
+    $row = 17
     foreach ($key in $accessTypes.Keys) {
         $legendSheet.Cells["A$row"].Value = $key
         $legendSheet.Cells["B$row"].Value = $accessTypes[$key]
@@ -177,7 +180,7 @@ catch {
 try {
     $form = New-Object System.Windows.Forms.Form
     $form.Text = "Select a Department"
-    $form.Size = New-Object System.Drawing.Size(300, 420)
+    $form.Size = New-Object System.Drawing.Size(400, 430)
     $form.StartPosition = "CenterScreen"
     $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
     $form.MaximizeBox = $false
@@ -185,7 +188,7 @@ try {
 
     $listView = New-Object System.Windows.Forms.ListView
     $listView.View = [System.Windows.Forms.View]::List
-    $listView.Size = New-Object System.Drawing.Size(260, 300)
+    $listView.Size = New-Object System.Drawing.Size(360, 300)
     $listView.Location = New-Object System.Drawing.Point(10, 10)
 
     $OUs | Sort-Object { $_.Properties.name[0] } | ForEach-Object {
@@ -195,9 +198,41 @@ try {
     }
     $form.Controls.Add($listView)
 
+    $textBox = New-Object System.Windows.Forms.TextBox
+    $textBox.Size = New-Object System.Drawing.Size(360, 20)
+    $textBox.Location = New-Object System.Drawing.Point(10, 320)
+    $textBox.Text = "Department Root Folder Path"
+    $textBox.Enabled = $false
+    $form.Controls.Add($textBox)
+
+    $label = New-Object System.Windows.Forms.Label
+    $label.Text = "Folder Depth"
+    $label.Size = New-Object System.Drawing.Size(80, 20)
+    $label.Location = New-Object System.Drawing.Point(10, 355)
+    $form.Controls.Add($label)
+
+    $numericUpDown = New-Object System.Windows.Forms.NumericUpDown
+    $numericUpDown.Size = New-Object System.Drawing.Size(60, 20)
+    $numericUpDown.Location = New-Object System.Drawing.Point(100, 350)
+    $numericUpDown.Minimum = 1
+    $numericUpDown.Maximum = 10
+    $numericUpDown.Value = 2
+    $form.Controls.Add($numericUpDown)
+
+    $depthLabel = New-Object System.Windows.Forms.Label
+    $depthLabel.Size = New-Object System.Drawing.Size(100, 20)
+    $depthLabel.Location = New-Object System.Drawing.Point(165, 355)
+    $depthLabel.ForeColor = [System.Drawing.Color]::Gray
+    $depthLabel.Text = ("\x" * $numericUpDown.Value)
+    $form.Controls.Add($depthLabel)
+
+    $numericUpDown.Add_ValueChanged({
+        $depthLabel.Text = ("\x" * $numericUpDown.Value)
+    })
+
     $okButton = New-Object System.Windows.Forms.Button
     $okButton.Text = "OK"
-    $okButton.Location = New-Object System.Drawing.Point(10, 350)
+    $okButton.Location = New-Object System.Drawing.Point(295, 350)
     $okButton.Enabled = $false
     $okButton.Add_Click({
         if ($listView.SelectedItems.Count -eq 0) {
@@ -207,45 +242,22 @@ try {
         $selectedTag = $listView.SelectedItems[0].Tag
 
         if ($selectedTag -and $selectedTag.Properties -and $selectedTag.Properties['distinguishedname'] -and $selectedTag.Properties['distinguishedname'].Count -gt 0) {
-            $form.Tag = $selectedTag
+            $form.Tag = @{
+                DistinguishedName = $selectedTag.Properties['distinguishedname'][0]
+                FolderPath = $textBox.Text
+                FolderDepth = $numericUpDown.Value
+            }
+            $form.DialogResult = [System.Windows.Forms.DialogResult]::OK
+            $form.Close()
+            $form.Dispose()
         }
         else {
             Write-Host "Selected item does not have a valid distinguished name."
-            return
         }
-
-        $form.Tag = @{
-            DistinguishedName = $selectedTag.Properties['distinguishedname'][0]
-            FolderPath = $textBox.Text
-            MaxDepth = $numericUpDown.Value
-        }
-        $form.DialogResult = [System.Windows.Forms.DialogResult]::OK
-        $form.Close()
-        $form.Dispose()
     })
     $form.Controls.Add($okButton)
 
-    $textBox = New-Object System.Windows.Forms.TextBox
-    $textBox.Size = New-Object System.Drawing.Size(260, 20)
-    $textBox.Location = New-Object System.Drawing.Point(10, 320)
-    $textBox.Text = "Department Root Folder Path"
-    $textBox.Enabled = $false
-    $form.Controls.Add($textBox)
-
-    $label = New-Object System.Windows.Forms.Label
-    $label.Text = "Max Folder Depth:"
-    $label.Size = New-Object System.Drawing.Size(100, 20)
-    $label.Location = New-Object System.Drawing.Point(130, 350)
-    $form.Controls.Add($label)
-
-    $numericUpDown = New-Object System.Windows.Forms.NumericUpDown
-    $numericUpDown.Size = New-Object System.Drawing.Size(40, 20)
-    $numericUpDown.Location = New-Object System.Drawing.Point(230, 350)
-    $numericUpDown.Minimum = 1
-    $numericUpDown.Maximum = 10
-    $numericUpDown.Value = 2
-    $form.Controls.Add($numericUpDown)
-
+    # Update TextBox and enable OK Button on selection
     $listView.Add_SelectedIndexChanged({
         if ($listView.SelectedItems.Count -gt 0) {
             $selectedTag = $listView.SelectedItems[0].Tag
@@ -270,7 +282,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
         $formTag = $form.Tag
         $distinguishedName = $formTag.DistinguishedName
         $folderPath = $formTag.FolderPath
-        $maxDepth = $formTag.MaxDepth
+        $folderDepth = $formTag.FolderDepth
 
         if ($distinguishedName) {
             Write-Host "Attempting to retrieve groups from: $distinguishedName"
@@ -348,7 +360,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             }
         }
 
-        $folderAccessResults = Get-FolderAccess -groupNames $allGroupNames -folderPath $folderPath -maxDepth $maxDepth
+        $folderAccessResults = Get-FolderAccess -groupNames $allGroupNames -folderPath $folderPath -folderDepth $folderDepth
 
         foreach ($groupName in $allGroupNames) {
             if ($folderAccessResults.ContainsKey($groupName)) {
