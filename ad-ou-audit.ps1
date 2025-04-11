@@ -94,7 +94,7 @@ function Add-LegendSheet {
 
     $legendSheet = $excelPackage.Workbook.Worksheets.Add("Legend")
 
-    $legendSheet.Cells["A1"].Value = "AD OU Audit for $departmentName $currentDate"
+    $legendSheet.Cells["A1"].Value = "Active Directory Organizational Unit Audit - $departmentName - $($currentDate -replace '-', '/')"
     $legendSheet.Cells["A1"].Style.Font.Bold = $true
 
     $legendSheet.Cells["A2"].Value = "Distinguished Name"
