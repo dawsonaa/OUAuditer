@@ -4,6 +4,15 @@
 ## Overview
 This PowerShell script exports Active Directory (AD) group memberships for a specified Organizational Unit (OU). Additionally, it retrieves W drive folder access permissions associated with these groups and their members. This audit ensures that groups provide the intended access and verifies group membership accuracy.
 
+## GUI
+![Example Screenshot](images/screenshot-gui-1.png)
+
+## Legend Sheet
+![Example Screenshot](images/legend-sheet.png)
+
+## Group Sheet
+![Example Screenshot](images/group-sheet.png)
+
 ## Features
 - Extracts AD group memberships for a selected OU.
 - Retrieves associated W drive folder access permissions.
