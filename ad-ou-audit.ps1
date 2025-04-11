@@ -211,19 +211,19 @@ try {
     $textBox = New-Object System.Windows.Forms.TextBox
     $textBox.Size = New-Object System.Drawing.Size(360, 20)
     $textBox.Location = New-Object System.Drawing.Point(10, 320)
-    $textBox.Text = "Department Root Folder Path"
+    $textBox.Text = "Folder Path"
     $textBox.Enabled = $false
     $form.Controls.Add($textBox)
 
     $label = New-Object System.Windows.Forms.Label
     $label.Text = "Folder Depth"
-    $label.Size = New-Object System.Drawing.Size(80, 20)
+    $label.Size = New-Object System.Drawing.Size(70, 20)
     $label.Location = New-Object System.Drawing.Point(10, 355)
     $form.Controls.Add($label)
 
     $numericUpDown = New-Object System.Windows.Forms.NumericUpDown
     $numericUpDown.Size = New-Object System.Drawing.Size(60, 20)
-    $numericUpDown.Location = New-Object System.Drawing.Point(100, 350)
+    $numericUpDown.Location = New-Object System.Drawing.Point(85, 350)
     $numericUpDown.Minimum = 0
     $numericUpDown.Maximum = 10
     $numericUpDown.Value = 2
@@ -231,7 +231,7 @@ try {
 
     $depthLabel = New-Object System.Windows.Forms.Label
     $depthLabel.Size = New-Object System.Drawing.Size(100, 20)
-    $depthLabel.Location = New-Object System.Drawing.Point(165, 355)
+    $depthLabel.Location = New-Object System.Drawing.Point(150, 355)
     $depthLabel.ForeColor = [System.Drawing.Color]::Gray
     $depthLabel.Text = ("\x" * $numericUpDown.Value)
     $form.Controls.Add($depthLabel)
