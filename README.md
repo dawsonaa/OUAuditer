@@ -10,6 +10,9 @@ This PowerShell script exports Active Directory (AD) group memberships for a spe
 ## Legend Sheet
 ![Example Screenshot](images/legend-sheet.png)
 
+## Group Sheet
+![Example Screenshot](images/group-sheet.png)
+
 ## Features
 - Extracts AD group memberships for a selected OU.
 - Retrieves associated W drive folder access permissions.
