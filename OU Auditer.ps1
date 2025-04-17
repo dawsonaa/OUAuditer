@@ -4,9 +4,6 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.DirectoryServices
 Add-Type -AssemblyName System.Drawing
 
-$iconPath = Join-Path $PSScriptRoot "icon.ico"
-$icon = [System.Drawing.Icon]::ExtractAssociatedIcon($iconPath)
-
 if (-not (Get-Module -ListAvailable -Name ImportExcel)) {
     Write-Host "The ImportExcel module is not installed. Running Install-Module command."
     $dialogResult = [System.Windows.Forms.MessageBox]::Show("ImportExcel module is not installed, Attempting to install. Please type 'A' in powershell to install.", "Required Module not installed", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
@@ -14,6 +11,10 @@ if (-not (Get-Module -ListAvailable -Name ImportExcel)) {
 }
 
 Write-Host "Starting the script..."
+
+$iconPath = Join-Path $PSScriptRoot "icon.ico"
+$icon = [System.Drawing.Icon]::ExtractAssociatedIcon($iconPath)
+$currentDate = $null
 
 function Get-FolderAccess {
     param (
@@ -82,6 +83,27 @@ function Get-FolderAccess {
     return $accessList
 }
 
+function Get-DateWithOrdinal {
+    param (
+        [datetime]$date
+    )
+
+    $day = $date.Day
+    $suffix = switch ($day) {
+        { ($_ -lt 11 -or $_ -gt 13) -and ($_ % 10 -eq 1) } { "st"; break }
+        { ($_ -lt 11 -or $_ -gt 13) -and ($_ % 10 -eq 2) } { "nd"; break }
+        { ($_ -lt 11 -or $_ -gt 13) -and ($_ % 10 -eq 3) } { "rd"; break }
+        default { "th" }
+    }
+
+    return "{0} {1}{2}, {3} at {4}" -f `
+        $date.ToString("MMMM"), `
+        $day, `
+        $suffix, `
+        $date.Year, `
+        $date.ToString("h:mm tt")
+}
+
 function Add-LegendSheet {
     param (
         [string]$excelFile,
@@ -91,13 +113,13 @@ function Add-LegendSheet {
 
     $department = $distinguishedName -split ',' | Select-Object -First 1
     $departmentName = $department -split '=' | Select-Object -Last 1
-    $currentDate = Get-Date -Format "MM-dd-yyyy"
+    $formattedDate = Get-DateWithOrdinal -date $currentDate
 
     $excelPackage = Open-ExcelPackage -Path $excelFile
 
     $legendSheet = $excelPackage.Workbook.Worksheets.Add("Legend")
 
-    $legendSheet.Cells["A1"].Value = "Active Directory Organizational Unit Audit - $departmentName - $($currentDate -replace '-', '/')"
+    $legendSheet.Cells["A1"].Value = "Active Directory Organizational Unit Audit - $departmentName - $formattedDate"
     $legendSheet.Cells["A1"].Style.Font.Bold = $true
 
     $legendSheet.Cells["A2"].Value = "Distinguished Name"
@@ -393,18 +415,24 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
         }
         Write-Host "Exporting to Excel..."
         $OUName = ($distinguishedName -split ',')[0].split('=')[1]
-        $currentDate = Get-Date -Format "MM-dd-yyyy"
-        $saveFileDialog = New-Object System.Windows.Forms.SaveFileDialog
-        $saveFileDialog.InitialDirectory = [Environment]::GetFolderPath('Desktop')
-        $saveFileDialog.Filter = "Excel files (*.xlsx)|*.xlsx"
-        $saveFileDialog.FileName = "$OUName-OUAudit-$currentDate.xlsx"
-        $saveFileOpen = $saveFileDialog.ShowDialog()
+        $departmentName = ($distinguishedName -split ',')[0].split('=')[1]
 
-        if ($saveFileOpen -eq 'OK') {
-            $excelFile = $saveFileDialog.FileName
-            if (Test-Path -Path $excelFile) {
-                Remove-Item -Path $excelFile -Force
-            }
+        $currentDate = Get-Date
+        $excelDate = $currentDate.ToString("yyyy-MMM-dd_hh-mmtt")
+
+        $exportsFolder = Join-Path $PSScriptRoot "exports"
+        if (-not (Test-Path -Path $exportsFolder)) {
+            New-Item -Path $exportsFolder -ItemType Directory | Out-Null
+        }
+
+        $departmentFolder = Join-Path $exportsFolder $departmentName
+        if (-not (Test-Path -Path $departmentFolder)) {
+            New-Item -Path $departmentFolder -ItemType Directory | Out-Null
+        }
+
+        $excelFile = Join-Path $departmentFolder "$OUName-$excelDate.xlsx"
+        if (Test-Path -Path $excelFile) {
+            Remove-Item -Path $excelFile -Force
         }
 
         $sortedExcelData = $excelData.GetEnumerator() | Sort-Object Key
@@ -451,7 +479,6 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             $worksheet.Cells["B1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
             $worksheet.Cells["B1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
 
-            $done = 0
             for ($row = 1; $row -le $lastRow; $row++) {
                 $cell = $worksheet.Cells[$row, 1]
                 if ($cell.Text -eq "Folder") {
