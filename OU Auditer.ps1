@@ -257,7 +257,7 @@ try {
 
     $depthLabel = New-Object System.Windows.Forms.Label
     $depthLabel.Size = New-Object System.Drawing.Size(100, 20)
-    $depthLabel.Location = New-Object System.Drawing.Point(150, 355)
+    $depthLabel.Location = New-Object System.Drawing.Point(10, 375)
     $depthLabel.ForeColor = [System.Drawing.Color]::Gray
     $depthLabel.Text = ("\x" * $numericUpDown.Value)
     $form.Controls.Add($depthLabel)
@@ -267,8 +267,9 @@ try {
     })
 
     $okButton = New-Object System.Windows.Forms.Button
-    $okButton.Text = "OK"
-    $okButton.Location = New-Object System.Drawing.Point(295, 350)
+    $okButton.Text = "Run Audit"
+    $okButton.Size = New-Object System.Drawing.Size(80, 25)
+    $okButton.Location = New-Object System.Drawing.Point(290, 350)
     $okButton.Enabled = $false
     $okButton.Add_Click({
         if ($listView.SelectedItems.Count -eq 0) {
@@ -292,6 +293,20 @@ try {
         }
     })
     $form.Controls.Add($okButton)
+
+    $viewExportsButton = New-Object System.Windows.Forms.Button
+    $viewExportsButton.Text = "View Exports"
+    $viewExportsButton.Size = New-Object System.Drawing.Size(80, 25)
+    $viewExportsButton.Location = New-Object System.Drawing.Point(205, 350)
+    $viewExportsButton.Add_Click({
+        $exportsFolder = Join-Path $PSScriptRoot "Exports"
+        if (Test-Path -Path $exportsFolder) {
+            Start-Process "explorer.exe" -ArgumentList $exportsFolder
+        } else {
+            [System.Windows.Forms.MessageBox]::Show("No Exports folder found.", "Error", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+        }
+    })
+    $form.Controls.Add($viewExportsButton)
 
     $listView.Add_SelectedIndexChanged({
         if ($listView.SelectedItems.Count -gt 0) {
@@ -420,7 +435,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
         $currentDate = Get-Date
         $excelDate = $currentDate.ToString("yyyy-MMM-dd_hh-mmtt")
 
-        $exportsFolder = Join-Path $PSScriptRoot "exports"
+        $exportsFolder = Join-Path $PSScriptRoot "Exports"
         if (-not (Test-Path -Path $exportsFolder)) {
             New-Item -Path $exportsFolder -ItemType Directory | Out-Null
         }
