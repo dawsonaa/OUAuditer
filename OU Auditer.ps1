@@ -23,19 +23,17 @@ function Get-FolderAccess {
         [int]$folderDepth = 2,
         [bool]$recursive = $false
     )
+
+    Write-Host "`nGetting folder access for groups: $($groupNames -join ', ')`nFolder Path: $folderPath`nFolder Depth: $folderDepth"
     $startTime = [DateTime]::Now.Ticks
-
-    Write-Host "Getting folder access for groups: $($groupNames -join ', ')`nFolder Path: $folderPath`nFolder Depth: $folderDepth`n"
-
     $accessList = @{}
-
     $rootAcl = Get-Acl -Path $folderPath
     $rootGroups = $rootAcl.Access | ForEach-Object { $_.IdentityReference.Value }
 
     foreach ($groupName in $groupNames) {
         $accessList[$groupName] = @()
         if ($rootGroups -contains $groupName) {
-            $accessList[$groupName] += [PSCustomObject]@{ Folder = $folderPath; 'Access Types' = $_.FileSystemRights }
+            $accessList[$groupName] += [PSCustomObject]@{ Folders = $folderPath; 'Access Types' = $_.FileSystemRights }
         }
     }
 
@@ -56,21 +54,18 @@ function Get-FolderAccess {
 
         $acl = Get-Acl -Path $folder.FullName
         $parentFolder = Get-Item -Path $folder.FullName | Select-Object -ExpandProperty Parent
-
         if ($null -eq $parentFolder -or $parentFolder.FullName -eq "") {
             continue
         }
 
         $parentAcl = Get-Acl -Path $parentFolder.FullName
-
-        $folderGroups = $acl.Access | ForEach-Object { $_.IdentityReference.Value }
         $parentGroups = $parentAcl.Access | ForEach-Object { $_.IdentityReference.Value }
-
+        $folderGroups = $acl.Access | ForEach-Object { $_.IdentityReference.Value }
         if ($folderGroups -ne $parentGroups) {
             foreach ($groupName in $groupNames) {
                 foreach ($access in $acl.Access) {
                     if ($access.IdentityReference -like "*$groupName*") {
-                        $accessList[$groupName] += [PSCustomObject]@{ Folder = $folder.FullName; 'Access Types' = $access.FileSystemRights }
+                        $accessList[$groupName] += [PSCustomObject]@{ Folders = $folder.FullName; 'Access Types' = $access.FileSystemRights }
                         break
                     }
                 }
@@ -79,7 +74,7 @@ function Get-FolderAccess {
     }
 
     $endTime = [DateTime]::Now.Ticks
-    Write-Host ("Time taken to get folder access: " + (($endTime - $startTime) / 10000000) + " s")
+    Write-Host ("Time taken to get folder access: " + (($endTime - $startTime) / 10000000) + " s`n")
     return $accessList
 }
 
@@ -118,6 +113,7 @@ function Add-LegendSheet {
     $excelPackage = Open-ExcelPackage -Path $excelFile
 
     $legendSheet = $excelPackage.Workbook.Worksheets.Add("Legend")
+    $legendSheet.TabColor = [System.Drawing.Color]::Green
 
     $legendSheet.Cells["A1"].Value = "Active Directory Organizational Unit Audit - $departmentName - $formattedDate"
     $legendSheet.Cells["A1"].Style.Font.Bold = $true
@@ -213,21 +209,16 @@ function Process-OUAudit {
         if ($distinguishedName) {
             Write-Host "Attempting to retrieve groups from: $distinguishedName"
         } else {
-            Write-Host "No OU was selected or the selected OU does not have a valid distinguished name."
+            Write-Host "`nNo OU was selected or the selected OU does not have a valid distinguished name.`n"
             return
         }
 
-        $selectedOUEntry = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$distinguishedName")
         $LDAPPath = "LDAP://$distinguishedName"
         $entry = New-Object DirectoryServices.DirectoryEntry $LDAPPath
         $searcherOU = New-Object DirectoryServices.DirectorySearcher $entry
-
         $searcherOU.Filter = "(objectClass=group)"
         $searcherOU.PageSize = 1000
-
         $groups = $searcherOU.FindAll()
-        Write-Host "Groups retrieval complete."
-
         if ($null -eq $groups) {
             Write-Host "Error: \$groups is null."
             return
@@ -235,6 +226,7 @@ function Process-OUAudit {
             Write-Host "Error: No groups found in selected OU."
             return
         }
+        Write-Host "Groups retrieval complete."
     }
     catch {
         Write-Host "Error retrieving groups from selected OU: $_"
@@ -265,30 +257,30 @@ function Process-OUAudit {
                 ($_.GetType().InvokeMember("Name", 'GetProperty', $null, $_, $null)) -replace '^CN=', ''
             }
 
+            $department = $distinguishedName -split ',' | Select-Object -First 1
+            $departmentName = $department -split '=' | Select-Object -Last 1
+
+            if (-not $processedFolders.ContainsKey($folderPath)) {
+                $processedFolders[$folderPath] = @()
+            }
+
             if ($null -eq $groupMembers) {
                 Write-Host "$groupName has no users"
                 $groupsWithNoUsers += $groupName
             } else {
-                $department = $distinguishedName -split ',' | Select-Object -First 1
-                $departmentName = $department -split '=' | Select-Object -Last 1
-
-                if (-not $processedFolders.ContainsKey($folderPath)) {
-                    $processedFolders[$folderPath] = @()
-                }
-
                 Write-Host "Adding users from $groupName"
-                $excelData[$groupName] = @{
-                    Members = $groupMembers
-                    Folders = @()
-                }
-
-                $processedFolders[$folderPath] += $groupName
-                $allGroupNames += $groupName
             }
+
+            $excelData[$groupName] = @{
+                Members = $groupMembers
+                Folders = @()
+            }
+
+            $processedFolders[$folderPath] += $groupName
+            $allGroupNames += $groupName
         }
 
         $folderAccessResults = Get-FolderAccess -groupNames $allGroupNames -folderPath $folderPath -folderDepth $folderDepth
-
         foreach ($groupName in $allGroupNames) {
             if ($folderAccessResults.ContainsKey($groupName)) {
                 $excelData[$groupName].Folders = $folderAccessResults[$groupName]
@@ -306,9 +298,9 @@ function Process-OUAudit {
             return
         }
         Write-Host "Exporting to Excel..."
+
         $OUName = ($distinguishedName -split ',')[0].split('=')[1]
         $departmentName = ($distinguishedName -split ',')[0].split('=')[1]
-
         $currentDate = Get-Date
         $excelDate = $currentDate.ToString("yyyy-MMM-dd_hh-mmtt")
 
@@ -327,12 +319,9 @@ function Process-OUAudit {
             Remove-Item -Path $excelFile -Force
         }
 
-        $sortedExcelData = $excelData.GetEnumerator() | Sort-Object Key
-
         $groupsWithNoUsers | Export-Excel -Path $excelFile -WorksheetName "groups without users"
-
         $usersHeader = [PSCustomObject]@{ Users = "Users" }
-
+        $sortedExcelData = $excelData.GetEnumerator() | Sort-Object Key
         $sortedExcelData | ForEach-Object {
             $sheetName = $_.Key
             $members = $_.Value.Members | Sort-Object
@@ -345,35 +334,46 @@ function Process-OUAudit {
                 Close-ExcelPackage $excelPackage -Save:$false
             }
 
-            if ($worksheetExists) {
-                $usersHeader | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append
-                $members | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append -StartRow 2
-                $folders | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append -StartRow ($members.Count + 3)
-
-            } else {
-                $usersHeader | Export-Excel -Path $excelFile -WorksheetName $sheetName
-                $members | Export-Excel -Path $excelFile -WorksheetName $sheetName -StartRow 2
-                $folders | Export-Excel -Path $excelFile -WorksheetName $sheetName -StartRow ($members.Count + 3)
+            if ($members.Count -ne 0) {
+                $usersHeader | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append:$worksheetExists
             }
+            $members | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append:$worksheetExists -StartRow 2
+            $folders | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append:$worksheetExists -StartRow ($members.Count + 3)
         }
 
         $excelPackage = Open-ExcelPackage -Path $excelFile
         foreach ($worksheet in $excelPackage.Workbook.Worksheets) {
+            $lastRow = $worksheet.Dimension.End.Row
             if ($worksheet.Name -eq "groups without users") {
+                $worksheet.TabColor = [System.Drawing.Color]::Yellow
+                for ($row = 1; $row -le $lastRow; $row++) {
+                    $cell = $worksheet.Cells[$row, 1]
+                    if (-not [string]::IsNullOrWhiteSpace($cell.Text)) {
+                        $cell.Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                        $cell.Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Yellow)
+                    }
+                }
                 continue
             }
-            $lastRow = $worksheet.Dimension.End.Row
 
             $worksheet.Cells["A1"].Style.Font.Bold = $true
             $worksheet.Cells["A1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
-            $worksheet.Cells["A1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
             $worksheet.Cells["B1"].Style.Font.Bold = $true
             $worksheet.Cells["B1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
-            $worksheet.Cells["B1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
+
+            if ($groupsWithNoUsers.Contains($worksheet.Name)) {
+                $worksheet.TabColor = [System.Drawing.Color]::Yellow
+                $worksheet.Cells["A1"].Value = "No Users"
+                $worksheet.Cells["A1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Yellow)
+                $worksheet.Cells["B1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Yellow)
+            } else {
+                $worksheet.Cells["A1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
+                $worksheet.Cells["B1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
+            }
 
             for ($row = 1; $row -le $lastRow; $row++) {
                 $cell = $worksheet.Cells[$row, 1]
-                if ($cell.Text -eq "Folder") {
+                if ($cell.Text -eq "Folders") {
                     $cell.Style.Font.Bold = $true
                     $cell.Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
                     $cell.Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
@@ -386,11 +386,8 @@ function Process-OUAudit {
             $worksheet.Cells.AutoFitColumns()
         }
         Close-ExcelPackage -ExcelPackage $excelPackage
-
         Add-LegendSheet -excelFile $excelFile -folderPath $folderPath -distinguishedName $distinguishedName
-
-        Write-Host "Exported to $excelFile"
-        Write-Host ""
+        Write-Host "Exported to $excelFile`n"
     }
     catch {
         Write-Host "Error exporting to Excel: $_"
@@ -403,7 +400,7 @@ try {
     $searcher.Filter = "(objectClass=organizationalUnit)"
     $searcher.SearchScope = [System.DirectoryServices.SearchScope]::OneLevel
     $OUs = $searcher.FindAll()
-    Write-Host "Retrieved OUs. Count: $($OUs.Count)"
+    Write-Host "Retrieved OUs. Count: $($OUs.Count)`n"
 }
 catch {
     Write-Host "Error retrieving OUs: $_"
@@ -411,7 +408,7 @@ catch {
 
 try {
     $form = New-Object System.Windows.Forms.Form
-    $form.Text = "Select a Department"
+    $form.Text = "OU Auditer"
     $form.Size = New-Object System.Drawing.Size(400, 430)
     $form.StartPosition = "CenterScreen"
     $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
