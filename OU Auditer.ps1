@@ -200,146 +200,21 @@ function Add-LegendSheet {
     Close-ExcelPackage $excelPackage
 }
 
-try {
-    $rootEntry = New-Object System.DirectoryServices.DirectoryEntry("LDAP://OU=Dept,DC=USERS,DC=CAMPUS")
-    $searcher = New-Object System.DirectoryServices.DirectorySearcher($rootEntry)
-    $searcher.Filter = "(objectClass=organizationalUnit)"
-    $searcher.SearchScope = [System.DirectoryServices.SearchScope]::OneLevel
-    $OUs = $searcher.FindAll()
-    Write-Host "Retrieved OUs. Count: $($OUs.Count)"
-}
-catch {
-    Write-Host "Error retrieving OUs: $_"
-}
+function Process-OUAudit {
+    param (
+        [hashtable]$formTag
+    )
 
-try {
-    $form = New-Object System.Windows.Forms.Form
-    $form.Text = "Select a Department"
-    $form.Size = New-Object System.Drawing.Size(400, 430)
-    $form.StartPosition = "CenterScreen"
-    $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
-    $form.MaximizeBox = $false
-    $form.MinimizeBox = $false
-    $form.Icon = $icon
-
-    $listView = New-Object System.Windows.Forms.ListView
-    $listView.View = [System.Windows.Forms.View]::List
-    $listView.Size = New-Object System.Drawing.Size(360, 300)
-    $listView.Location = New-Object System.Drawing.Point(10, 10)
-
-    $OUs | Sort-Object { $_.Properties.name[0] } | ForEach-Object {
-        $item = New-Object System.Windows.Forms.ListViewItem($_.Properties.name[0].ToString())
-        $item.Tag = $_
-        $listView.Items.Add($item) | Out-Null
-    }
-    $form.Controls.Add($listView)
-
-    $textBox = New-Object System.Windows.Forms.TextBox
-    $textBox.Size = New-Object System.Drawing.Size(360, 20)
-    $textBox.Location = New-Object System.Drawing.Point(10, 320)
-    $textBox.Text = "Folder Path"
-    $textBox.Enabled = $false
-    $form.Controls.Add($textBox)
-
-    $label = New-Object System.Windows.Forms.Label
-    $label.Text = "Folder Depth"
-    $label.Size = New-Object System.Drawing.Size(70, 20)
-    $label.Location = New-Object System.Drawing.Point(10, 355)
-    $form.Controls.Add($label)
-
-    $numericUpDown = New-Object System.Windows.Forms.NumericUpDown
-    $numericUpDown.Size = New-Object System.Drawing.Size(60, 20)
-    $numericUpDown.Location = New-Object System.Drawing.Point(85, 350)
-    $numericUpDown.Minimum = 0
-    $numericUpDown.Maximum = 10
-    $numericUpDown.Value = 2
-    $form.Controls.Add($numericUpDown)
-
-    $depthLabel = New-Object System.Windows.Forms.Label
-    $depthLabel.Size = New-Object System.Drawing.Size(100, 20)
-    $depthLabel.Location = New-Object System.Drawing.Point(10, 375)
-    $depthLabel.ForeColor = [System.Drawing.Color]::Gray
-    $depthLabel.Text = ("\x" * $numericUpDown.Value)
-    $form.Controls.Add($depthLabel)
-
-    $numericUpDown.Add_ValueChanged({
-        $depthLabel.Text = ("\x" * $numericUpDown.Value)
-    })
-
-    $okButton = New-Object System.Windows.Forms.Button
-    $okButton.Text = "Run Audit"
-    $okButton.Size = New-Object System.Drawing.Size(80, 25)
-    $okButton.Location = New-Object System.Drawing.Point(290, 350)
-    $okButton.Enabled = $false
-    $okButton.Add_Click({
-        if ($listView.SelectedItems.Count -eq 0) {
-            Write-Host "No item selected inside the OK button click event."
-            return
-        }
-        $selectedTag = $listView.SelectedItems[0].Tag
-
-        if ($selectedTag -and $selectedTag.Properties -and $selectedTag.Properties['distinguishedname'] -and $selectedTag.Properties['distinguishedname'].Count -gt 0) {
-            $form.Tag = @{
-                DistinguishedName = $selectedTag.Properties['distinguishedname'][0]
-                FolderPath = $textBox.Text
-                FolderDepth = $numericUpDown.Value
-            }
-            $form.DialogResult = [System.Windows.Forms.DialogResult]::OK
-            $form.Close()
-            $form.Dispose()
-        }
-        else {
-            Write-Host "Selected item does not have a valid distinguished name."
-        }
-    })
-    $form.Controls.Add($okButton)
-
-    $viewExportsButton = New-Object System.Windows.Forms.Button
-    $viewExportsButton.Text = "View Exports"
-    $viewExportsButton.Size = New-Object System.Drawing.Size(80, 25)
-    $viewExportsButton.Location = New-Object System.Drawing.Point(205, 350)
-    $viewExportsButton.Add_Click({
-        $exportsFolder = Join-Path $PSScriptRoot "Exports"
-        if (Test-Path -Path $exportsFolder) {
-            Start-Process "explorer.exe" -ArgumentList $exportsFolder
-        } else {
-            [System.Windows.Forms.MessageBox]::Show("No Exports folder found.", "Error", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
-        }
-    })
-    $form.Controls.Add($viewExportsButton)
-
-    $listView.Add_SelectedIndexChanged({
-        if ($listView.SelectedItems.Count -gt 0) {
-            $selectedTag = $listView.SelectedItems[0].Tag
-            if ($selectedTag -and $selectedTag.Properties -and $selectedTag.Properties['distinguishedname'] -and $selectedTag.Properties['distinguishedname'].Count -gt 0) {
-                $department = $selectedTag.Properties['distinguishedname'][0] -split ',' | Select-Object -First 1
-                $departmentName = $department -split '=' | Select-Object -Last 1
-                $textBox.Text = "\\catfiles.users.campus\workarea$\" + $departmentName
-                $textBox.Enabled = $true
-                $okButton.Enabled = $true
-            }
-        }
-    })
-
-    $result = $form.ShowDialog()
-}
-catch {
-    Write-Host "Error with GUI or OU selection: $_"
-}
-
-if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
     try {
-        $formTag = $form.Tag
         $distinguishedName = $formTag.DistinguishedName
         $folderPath = $formTag.FolderPath
         $folderDepth = $formTag.FolderDepth
 
         if ($distinguishedName) {
             Write-Host "Attempting to retrieve groups from: $distinguishedName"
-        }
-        else {
+        } else {
             Write-Host "No OU was selected or the selected OU does not have a valid distinguished name."
-            exit
+            return
         }
 
         $selectedOUEntry = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$distinguishedName")
@@ -355,14 +230,15 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
 
         if ($null -eq $groups) {
             Write-Host "Error: \$groups is null."
-        }
-        elseif ($groups.Count -eq 0) {
+            return
+        } elseif ($groups.Count -eq 0) {
             Write-Host "Error: No groups found in selected OU."
+            return
         }
     }
     catch {
         Write-Host "Error retrieving groups from selected OU: $_"
-        exit
+        return
     }
 
     try {
@@ -374,6 +250,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
         foreach ($group in $groups) {
             if ($null -eq $group.Properties.name) {
                 Write-Host "Error: \group.Properties.name is null."
+                continue
             }
 
             $groupName = $group.Properties.name[0].ToString()
@@ -381,6 +258,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
 
             if ($null -eq $groupEntry) {
                 Write-Host "Error: \groupEntry is null."
+                continue
             }
 
             $groupMembers = $groupEntry.psbase.Invoke("Members") | ForEach-Object {
@@ -390,8 +268,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             if ($null -eq $groupMembers) {
                 Write-Host "$groupName has no users"
                 $groupsWithNoUsers += $groupName
-            }
-            else {
+            } else {
                 $department = $distinguishedName -split ',' | Select-Object -First 1
                 $departmentName = $department -split '=' | Select-Object -Last 1
 
@@ -420,13 +297,13 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
     }
     catch {
         Write-Host "Error processing groups or members: $_"
-        exit
+        return
     }
 
     try {
         if ($excelData.Count -eq 0) {
             Write-Host "No data available for Excel export."
-            exit
+            return
         }
         Write-Host "Exporting to Excel..."
         $OUName = ($distinguishedName -split ',')[0].split('=')[1]
@@ -514,9 +391,135 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
 
         Write-Host "Exported to $excelFile"
         Write-Host ""
-        Read-Host "Press Enter to close the window..."
     }
     catch {
         Write-Host "Error exporting to Excel: $_"
     }
+}
+
+try {
+    $rootEntry = New-Object System.DirectoryServices.DirectoryEntry("LDAP://OU=Dept,DC=USERS,DC=CAMPUS")
+    $searcher = New-Object System.DirectoryServices.DirectorySearcher($rootEntry)
+    $searcher.Filter = "(objectClass=organizationalUnit)"
+    $searcher.SearchScope = [System.DirectoryServices.SearchScope]::OneLevel
+    $OUs = $searcher.FindAll()
+    Write-Host "Retrieved OUs. Count: $($OUs.Count)"
+}
+catch {
+    Write-Host "Error retrieving OUs: $_"
+}
+
+try {
+    $form = New-Object System.Windows.Forms.Form
+    $form.Text = "Select a Department"
+    $form.Size = New-Object System.Drawing.Size(400, 430)
+    $form.StartPosition = "CenterScreen"
+    $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
+    $form.MaximizeBox = $false
+    $form.MinimizeBox = $false
+    $form.Icon = $icon
+
+    $listView = New-Object System.Windows.Forms.ListView
+    $listView.View = [System.Windows.Forms.View]::List
+    $listView.Size = New-Object System.Drawing.Size(360, 300)
+    $listView.Location = New-Object System.Drawing.Point(10, 10)
+
+    $OUs | Sort-Object { $_.Properties.name[0] } | ForEach-Object {
+        $item = New-Object System.Windows.Forms.ListViewItem($_.Properties.name[0].ToString())
+        $item.Tag = $_
+        $listView.Items.Add($item) | Out-Null
+    }
+    $form.Controls.Add($listView)
+
+    $textBox = New-Object System.Windows.Forms.TextBox
+    $textBox.Size = New-Object System.Drawing.Size(360, 20)
+    $textBox.Location = New-Object System.Drawing.Point(10, 320)
+    $textBox.Text = "Folder Path"
+    $textBox.Enabled = $false
+    $form.Controls.Add($textBox)
+
+    $label = New-Object System.Windows.Forms.Label
+    $label.Text = "Folder Depth"
+    $label.Size = New-Object System.Drawing.Size(70, 20)
+    $label.Location = New-Object System.Drawing.Point(10, 355)
+    $form.Controls.Add($label)
+
+    $numericUpDown = New-Object System.Windows.Forms.NumericUpDown
+    $numericUpDown.Size = New-Object System.Drawing.Size(60, 20)
+    $numericUpDown.Location = New-Object System.Drawing.Point(85, 350)
+    $numericUpDown.Minimum = 0
+    $numericUpDown.Maximum = 10
+    $numericUpDown.Value = 2
+    $form.Controls.Add($numericUpDown)
+
+    $depthLabel = New-Object System.Windows.Forms.Label
+    $depthLabel.Size = New-Object System.Drawing.Size(100, 20)
+    $depthLabel.Location = New-Object System.Drawing.Point(10, 375)
+    $depthLabel.ForeColor = [System.Drawing.Color]::Gray
+    $depthLabel.Text = ("\x" * $numericUpDown.Value)
+    $form.Controls.Add($depthLabel)
+
+    $numericUpDown.Add_ValueChanged({
+        $depthLabel.Text = ("\x" * $numericUpDown.Value)
+    })
+
+    $okButton = New-Object System.Windows.Forms.Button
+    $okButton.Text = "Run Audit"
+    $okButton.Size = New-Object System.Drawing.Size(80, 25)
+    $okButton.Location = New-Object System.Drawing.Point(290, 350)
+    $okButton.Enabled = $false
+    $okButton.Add_Click({
+        if ($listView.SelectedItems.Count -eq 0) {
+            Write-Host "No item selected inside the OK button click event."
+            return
+        }
+        $selectedTag = $listView.SelectedItems[0].Tag
+
+        if ($selectedTag -and $selectedTag.Properties -and $selectedTag.Properties['distinguishedname'] -and $selectedTag.Properties['distinguishedname'].Count -gt 0) {
+            $form.Tag = @{
+                DistinguishedName = $selectedTag.Properties['distinguishedname'][0]
+                FolderPath = $textBox.Text
+                FolderDepth = $numericUpDown.Value
+            }
+            $form.Enabled = $false
+            Process-OUAudit -formTag $form.Tag
+            $form.Enabled = $true
+        }
+        else {
+            Write-Host "Selected item does not have a valid distinguished name."
+        }
+    })
+    $form.Controls.Add($okButton)
+
+    $viewExportsButton = New-Object System.Windows.Forms.Button
+    $viewExportsButton.Text = "View Exports"
+    $viewExportsButton.Size = New-Object System.Drawing.Size(80, 25)
+    $viewExportsButton.Location = New-Object System.Drawing.Point(205, 350)
+    $viewExportsButton.Add_Click({
+        $exportsFolder = Join-Path $PSScriptRoot "Exports"
+        if (Test-Path -Path $exportsFolder) {
+            Start-Process "explorer.exe" -ArgumentList $exportsFolder
+        } else {
+            [System.Windows.Forms.MessageBox]::Show("No Exports folder found.", "Error", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+        }
+    })
+    $form.Controls.Add($viewExportsButton)
+
+    $listView.Add_SelectedIndexChanged({
+        if ($listView.SelectedItems.Count -gt 0) {
+            $selectedTag = $listView.SelectedItems[0].Tag
+            if ($selectedTag -and $selectedTag.Properties -and $selectedTag.Properties['distinguishedname'] -and $selectedTag.Properties['distinguishedname'].Count -gt 0) {
+                $department = $selectedTag.Properties['distinguishedname'][0] -split ',' | Select-Object -First 1
+                $departmentName = $department -split '=' | Select-Object -Last 1
+                $textBox.Text = "\\catfiles.users.campus\workarea$\" + $departmentName
+                $textBox.Enabled = $true
+                $okButton.Enabled = $true
+            }
+        }
+    })
+
+    $result = $form.ShowDialog()
+}
+catch {
+    Write-Host "Error with GUI or OU selection: $_"
 }
