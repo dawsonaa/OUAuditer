@@ -196,7 +196,7 @@ function Add-LegendSheet {
     Close-ExcelPackage $excelPackage
 }
 
-function Process-OUAudit {
+function Invoke-OUAudit {
     param (
         [hashtable]$formTag
     )
@@ -479,8 +479,10 @@ try {
                 FolderDepth = $numericUpDown.Value
             }
             $form.Enabled = $false
-            Process-OUAudit -formTag $form.Tag
+            $form.Text = "OU Auditer - Processing..."
+            Invoke-OUAudit -formTag $form.Tag
             $form.Enabled = $true
+            $form.Text = "OU Auditer"
         }
         else {
             Write-Host "Selected item does not have a valid distinguished name."
@@ -515,7 +517,7 @@ try {
         }
     })
 
-    $result = $form.ShowDialog()
+    $form.showDialog() | Out-Null
 }
 catch {
     Write-Host "Error with GUI or OU selection: $_"
