@@ -460,12 +460,14 @@ try {
         $depthLabel.Text = ("\x" * $numericUpDown.Value)
     })
 
-    $okButton = New-Object System.Windows.Forms.Button
-    $okButton.Text = "Run Audit"
-    $okButton.Size = New-Object System.Drawing.Size(80, 25)
-    $okButton.Location = New-Object System.Drawing.Point(290, 350)
-    $okButton.Enabled = $false
-    $okButton.Add_Click({
+    $runAuditButton = New-Object System.Windows.Forms.Button
+    $runAuditButton.Text = "Run Audit"
+    $runAuditButton.Size = New-Object System.Drawing.Size(80, 25)
+    $runAuditButton.Location = New-Object System.Drawing.Point(290, 350)
+    $runAuditButton.Enabled = $false
+    $runAuditButton.BackColor = [System.Drawing.Color]::FromArgb(204, 30, 61)
+    $runAuditButton.ForeColor = [System.Drawing.Color]::White
+    $runAuditButton.Add_Click({
         if ($listView.SelectedItems.Count -eq 0) {
             Write-Host "No item selected inside the OK button click event."
             return
@@ -488,12 +490,14 @@ try {
             Write-Host "Selected item does not have a valid distinguished name."
         }
     })
-    $form.Controls.Add($okButton)
+    $form.Controls.Add($runAuditButton)
 
     $viewExportsButton = New-Object System.Windows.Forms.Button
     $viewExportsButton.Text = "View Exports"
     $viewExportsButton.Size = New-Object System.Drawing.Size(80, 25)
     $viewExportsButton.Location = New-Object System.Drawing.Point(205, 350)
+    $viewExportsButton.BackColor = [System.Drawing.Color]::FromArgb(127, 212, 165)
+    $viewExportsButton.ForeColor = [System.Drawing.Color]::White
     $viewExportsButton.Add_Click({
         $exportsFolder = Join-Path $PSScriptRoot "Exports"
         if (Test-Path -Path $exportsFolder) {
@@ -512,7 +516,7 @@ try {
                 $departmentName = $department -split '=' | Select-Object -Last 1
                 $textBox.Text = "\\catfiles.users.campus\workarea$\" + $departmentName
                 $textBox.Enabled = $true
-                $okButton.Enabled = $true
+                $runAuditButton.Enabled = $true
             }
         }
     })
