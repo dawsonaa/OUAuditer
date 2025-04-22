@@ -480,11 +480,9 @@ try {
                 FolderPath = $textBox.Text
                 FolderDepth = $numericUpDown.Value
             }
-            $form.Enabled = $false
-            $form.Text = "OU Auditer - Processing..."
+            $form.Hide()
             Invoke-OUAudit -formTag $form.Tag
-            $form.Enabled = $true
-            $form.Text = "OU Auditer"
+            $form.Show()
         }
         else {
             Write-Host "Selected item does not have a valid distinguished name."
