@@ -1,10 +1,6 @@
-# <img src="icon.ico" alt="Icon" height="64" style="vertical-align: middle;"> <span style="vertical-align: middle;">OU Auditer</span>  <img src="icon.ico" alt="Icon" height="64" style="vertical-align: middle; transform: scaleX(-1);">
+# <img src="icon.ico" alt="Icon" height="32" style="vertical-align: middle;"> <span style="vertical-align: middle;">OU Auditer</span>  <img src="icon.ico" alt="Icon" height="32" style="vertical-align: middle;">
 
----
-
-#### <img src="images/Kansas-State-Wildcats-logo.png" alt="wildcatPNG" height="24" style="vertical-align: middle;"> <span style="vertical-align: middle;">Developed by Dawson Adams (dawsonaa@ksu.edu, [GitHub](https://github.com/dawsonaa)) at Kansas State university </span> <img src="images/Kansas-State-Wildcats-logo.png" alt="wildcatPNG" height="16" style="vertical-align: middle; transform: scaleX(-1);">
-
----
+#### Developed by Dawson Adams (dawsonaa@ksu.edu, [GitHub](https://github.com/dawsonaa)) at Kansas State university </span>
 
 ## Overview
 This PowerShell script exports Active Directory (AD) group memberships for a specified Organizational Unit (OU). Additionally, it retrieves W drive folder access permissions associated with these groups and their members. This audit ensures that groups provide the intended access and verifies group membership accuracy.
@@ -37,5 +33,3 @@ This PowerShell script exports Active Directory (AD) group memberships for a spe
    <img src="images/desktop-icon.png" alt="Desktop Icon" height="200"><img src="images/startmenu-icon.png" alt="Start Menu Icon" height="200">.
 2. **Specify the target OU** and the target network folder location when prompted.
 3. **Review the generated report** by pressing the **"View Exports"** button on the GUI to open your exports folder containing the organized Excel files.
-
----
