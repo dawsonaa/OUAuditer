@@ -1,20 +1,18 @@
-# Author: Dawson Adams (dawsonaa@ksu.edu)
-
+# Author: Dawson Adams (dawsonaa@ksu.edu, https://github.com/dawsonaa)
+# Organization: Kansas State University
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.DirectoryServices
 Add-Type -AssemblyName System.Drawing
 
-if (-not (Get-Module -ListAvailable -Name ImportExcel)) {
-    Write-Host "The ImportExcel module is not installed. Running Install-Module command."
-    $dialogResult = [System.Windows.Forms.MessageBox]::Show("ImportExcel module is not installed, Attempting to install. Please type 'A' in powershell to install.", "Required Module not installed", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-    Install-Module -Name ImportExcel -Scope CurrentUser
-}
-
-Write-Host "Starting the script..."
-
 $iconPath = Join-Path $PSScriptRoot "icon.ico"
 $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($iconPath)
 $currentDate = $null
+
+if (-not (Get-Module -ListAvailable -Name ImportExcel)) {
+    Write-Host "The ImportExcel module is not installed. Running Install-Module command."
+    [System.Windows.Forms.MessageBox]::Show("ImportExcel module is not installed, Attempting to install. Please type 'A' in powershell to install.", "Required Module not installed", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+    Install-Module -Name ImportExcel -Scope CurrentUser
+}
 
 function Get-FolderAccess {
     param (
