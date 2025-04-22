@@ -1,16 +1,8 @@
-<h1 style="text-align: center;">
-  <img src="icon.ico" alt="Icon" height="64" style="vertical-align: middle;"> 
-  <span style="vertical-align: middle;">OU Auditer</span> 
-  <img src="icon.ico" alt="Icon" height="64" style="vertical-align: middle; transform: scaleX(-1);">
-</h1>
+# <img src="icon.ico" alt="Icon" height="64" style="vertical-align: middle;"> <span style="vertical-align: middle;">OU Auditer</span>  <img src="icon.ico" alt="Icon" height="64" style="vertical-align: middle; transform: scaleX(-1);">
 
 ---
 
-<h3 style="text-align: center;">
-  <img src="images/Kansas-State-Wildcats-logo.png" alt="wildcatPNG" height="24" style="vertical-align: middle;">
-  <span style="vertical-align: middle;">Developed by Dawson Adams (dawsonaa@ksu.edu, <a href="https://github.com/dawsonaa">GitHub</a>) at Kansas State University</span>
-  <img src="images/Kansas-State-Wildcats-logo.png" alt="wildcatPNG" height="24" style="vertical-align: middle; transform: scaleX(-1);">
-</h3>
+#### <img src="images/Kansas-State-Wildcats-logo.png" alt="wildcatPNG" height="24" style="vertical-align: middle;"> <span style="vertical-align: middle;">Developed by Dawson Adams (dawsonaa@ksu.edu, [GitHub](https://github.com/dawsonaa)) at Kansas State university </span> <img src="images/Kansas-State-Wildcats-logo.png" alt="wildcatPNG" height="16" style="vertical-align: middle; transform: scaleX(-1);">
 
 ---
 
