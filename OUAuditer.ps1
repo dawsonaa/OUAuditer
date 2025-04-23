@@ -340,10 +340,10 @@ function Invoke-OUAudit {
             }
 
             if ($members.Count -ne 0) {
-                $usersHeader | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append:$worksheetExists
+                $usersHeader | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append:$worksheetExists -StartRow 2
             }
-            $members | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append:$worksheetExists -StartRow 2
-            $folders | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append:$worksheetExists -StartRow ($members.Count + 3)
+            $members | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append:$worksheetExists -StartRow 3
+            $folders | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append:$worksheetExists -StartRow ($members.Count + 4)
         }
 
         $excelPackage = Open-ExcelPackage -Path $excelFile
@@ -366,21 +366,29 @@ function Invoke-OUAudit {
                     }
                 }
                 continue
+            } else {
+                $worksheet.Cells["A1"].Value = "$originalName"
+                $worksheet.Cells["A1"].Style.Font.Bold = $true
+                $worksheet.Cells["A1"].Style.Font.Size = 12
+                $worksheet.Cells["A1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                $worksheet.Cells["A1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightBlue)
+                $worksheet.Cells["B1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                $worksheet.Cells["B1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightBlue)
             }
 
-            $worksheet.Cells["A1"].Style.Font.Bold = $true
-            $worksheet.Cells["A1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
-            $worksheet.Cells["B1"].Style.Font.Bold = $true
-            $worksheet.Cells["B1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+            $worksheet.Cells["A2"].Style.Font.Bold = $true
+            $worksheet.Cells["A2"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+            $worksheet.Cells["B2"].Style.Font.Bold = $true
+            $worksheet.Cells["B2"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
 
             if ($groupsWithNoUsers.Contains($originalName)) {
                 $worksheet.TabColor = [System.Drawing.Color]::Yellow
-                $worksheet.Cells["A1"].Value = "No Users"
-                $worksheet.Cells["A1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Yellow)
-                $worksheet.Cells["B1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Yellow)
+                $worksheet.Cells["A2"].Value = "No Users"
+                $worksheet.Cells["A2"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Yellow)
+                $worksheet.Cells["B2"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Yellow)
             } else {
-                $worksheet.Cells["A1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
-                $worksheet.Cells["B1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
+                $worksheet.Cells["A2"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
+                $worksheet.Cells["B2"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
             }
 
             for ($row = 1; $row -le $lastRow; $row++) {
