@@ -373,8 +373,7 @@ function Invoke-OUAudit {
             }
 
             if ($worksheet.Name -eq "Summary") {
-                $worksheet.Cells.AutoFitColumns()
-                $worksheet.TabColor = [System.Drawing.Color]::Orange
+                $worksheet.TabColor = [System.Drawing.Color]::Red
 
                 $worksheet.Cells["A1:C1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
                 $worksheet.Cells["A1:C1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
@@ -384,6 +383,34 @@ function Invoke-OUAudit {
 
                 $worksheet.Cells["B2:B$lastRow"].Style.HorizontalAlignment = [OfficeOpenXml.Style.ExcelHorizontalAlignment]::Center
                 $worksheet.Cells["C2:C$lastRow"].Style.HorizontalAlignment = [OfficeOpenXml.Style.ExcelHorizontalAlignment]::Center
+
+                $worksheet.Cells["E1"].Value = "Key"
+                $worksheet.Cells["E1"].Style.Font.Bold = $true
+                $worksheet.Cells["E1:F1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                $worksheet.Cells["E1:F1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
+
+                $worksheet.Cells["E2"].Value = "No Users"
+                $worksheet.Cells["E2:F2"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                $worksheet.Cells["E2:F2"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Yellow)
+
+                $worksheet.Cells["E3"].Value = "No Folders"
+                $worksheet.Cells["E3:F3"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                $worksheet.Cells["E3:F3"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightBlue)
+
+                $worksheet.Cells["E4"].Value = "Users and Folders"
+                $worksheet.Cells["E4:F4"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                $worksheet.Cells["E4:F4"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGreen)
+
+                $worksheet.Cells["E1:E4"].Style.Border.Bottom.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
+                $worksheet.Cells["E1:E4"].Style.Border.Left.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
+
+                $worksheet.Cells["F1:F4"].Style.Border.Bottom.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
+                $worksheet.Cells["F1:F4"].Style.Border.Right.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
+
+                $worksheet.Cells["E5:G7"].Merge = $true
+                $worksheet.Cells["E5"].Value = "Note: Folder count is based on the specified depth and may not include all folders the group can access."
+                $worksheet.Cells["E5"].Style.Font.Italic = $true
+                $worksheet.Cells["E5"].Style.WrapText = $true
 
                 for ($row = 2; $row -le $lastRow; $row++) {
                     $groupName = $worksheet.Cells[$row, 1].Text
@@ -399,6 +426,7 @@ function Invoke-OUAudit {
                     $worksheet.Cells["A${row}:C${row}"].Style.Border.Bottom.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
                     $worksheet.Cells["A${row}:C${row}"].Style.Border.Right.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
                 }
+                $worksheet.Cells.AutoFitColumns()
                 continue
             } else {
                 $backgroundColor = $worksheetColorMap[$worksheet.Name]
