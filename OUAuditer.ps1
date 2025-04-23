@@ -1,3 +1,4 @@
+# OU Auditer
 # Author: Dawson Adams (dawsonaa@ksu.edu, https://github.com/dawsonaa)
 # Organization: Kansas State University
 Add-Type -AssemblyName System.Windows.Forms
@@ -319,9 +320,15 @@ function Invoke-OUAudit {
 
         $groupsWithNoUsers | Export-Excel -Path $excelFile -WorksheetName "groups without users"
         $usersHeader = [PSCustomObject]@{ Users = "Users" }
+        $worksheetNameMap = @{}
         $sortedExcelData = $excelData.GetEnumerator() | Sort-Object Key
         $sortedExcelData | ForEach-Object {
-            $sheetName = $_.Key
+            if ($_.key.length -gt 31) {
+                $sheetName = $_.Key.Substring(0, [Math]::Min($_.Key.Length, 28)) + "..."
+                $worksheetNameMap[$sheetName] = $_.Key
+            } else {
+                $sheetName = $_.Key
+            }
             $members = $_.Value.Members | Sort-Object
             $folders = $_.Value.Folders | Sort-Object
 
@@ -342,6 +349,13 @@ function Invoke-OUAudit {
         $excelPackage = Open-ExcelPackage -Path $excelFile
         foreach ($worksheet in $excelPackage.Workbook.Worksheets) {
             $lastRow = $worksheet.Dimension.End.Row
+
+            $originalName = if ($worksheetNameMap.ContainsKey($worksheet.Name)) {
+                $worksheetNameMap[$worksheet.Name]
+            } else {
+                $worksheet.Name
+            }
+
             if ($worksheet.Name -eq "groups without users") {
                 $worksheet.TabColor = [System.Drawing.Color]::Yellow
                 for ($row = 1; $row -le $lastRow; $row++) {
@@ -359,7 +373,7 @@ function Invoke-OUAudit {
             $worksheet.Cells["B1"].Style.Font.Bold = $true
             $worksheet.Cells["B1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
 
-            if ($groupsWithNoUsers.Contains($worksheet.Name)) {
+            if ($groupsWithNoUsers.Contains($originalName)) {
                 $worksheet.TabColor = [System.Drawing.Color]::Yellow
                 $worksheet.Cells["A1"].Value = "No Users"
                 $worksheet.Cells["A1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Yellow)
