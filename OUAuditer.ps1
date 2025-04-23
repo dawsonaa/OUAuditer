@@ -112,7 +112,7 @@ function Add-LegendSheet {
     $excelPackage = Open-ExcelPackage -Path $excelFile
 
     $legendSheet = $excelPackage.Workbook.Worksheets.Add("Legend")
-    $legendSheet.TabColor = [System.Drawing.Color]::Green
+    $legendSheet.TabColor = [System.Drawing.Color]::MediumPurple
 
     $legendSheet.Cells["A1"].Value = "Active Directory Organizational Unit Audit - $departmentName - $formattedDate"
     $legendSheet.Cells["A1"].Style.Font.Bold = $true
@@ -340,12 +340,14 @@ function Invoke-OUAudit {
             $members = $_.Value.Members | Sort-Object
             $folders = $_.Value.Folders | Sort-Object
 
-            if ($members.Count -eq 0) {
-                $worksheetColorMap[$sheetName] = [System.Drawing.Color]::Yellow
-            } elseif ($members.Count -ne 0 -and $folders.Count -eq 0) {
-                $worksheetColorMap[$sheetName] = [System.Drawing.Color]::LightBlue
+            if ($members.Count -eq 0 -and $folders.Count -eq 0) {
+                $worksheetColorMap[$sheetName] = [System.Drawing.Color]::DarkOrange
+            } elseif ($members.Count -eq 0) {
+                $worksheetColorMap[$sheetName] = [System.Drawing.Color]::Gold
+            } elseif ($folders.Count -eq 0) {
+                $worksheetColorMap[$sheetName] = [System.Drawing.Color]::LightSkyBlue
             } else {
-                $worksheetColorMap[$sheetName] = [System.Drawing.Color]::LightGreen
+                $worksheetColorMap[$sheetName] = [System.Drawing.Color]::DarkSeaGreen
             }
 
             $worksheetExists = $false
