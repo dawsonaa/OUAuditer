@@ -321,6 +321,7 @@ function Invoke-OUAudit {
         $groupsWithNoUsers | Export-Excel -Path $excelFile -WorksheetName "groups without users"
         $usersHeader = [PSCustomObject]@{ Users = "Users" }
         $worksheetNameMap = @{}
+        $worksheetColorMap = @{}
         $sortedExcelData = $excelData.GetEnumerator() | Sort-Object Key
         $sortedExcelData | ForEach-Object {
             if ($_.key.length -gt 31) {
@@ -331,6 +332,14 @@ function Invoke-OUAudit {
             }
             $members = $_.Value.Members | Sort-Object
             $folders = $_.Value.Folders | Sort-Object
+
+            if ($members.Count -eq 0) {
+                $worksheetColorMap[$sheetName] = [System.Drawing.Color]::Yellow
+            } elseif ($members.Count -ne 0 -and $folders.Count -eq 0) {
+                $worksheetColorMap[$sheetName] = [System.Drawing.Color]::LightBlue
+            } else {
+                $worksheetColorMap[$sheetName] = [System.Drawing.Color]::LightGreen
+            }
 
             $worksheetExists = $false
             if (Test-Path $excelFile) {
@@ -359,37 +368,35 @@ function Invoke-OUAudit {
             if ($worksheet.Name -eq "groups without users") {
                 $worksheet.TabColor = [System.Drawing.Color]::Yellow
                 for ($row = 1; $row -le $lastRow; $row++) {
-                    $cell = $worksheet.Cells[$row, 1]
-                    if (-not [string]::IsNullOrWhiteSpace($cell.Text)) {
-                        $cell.Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
-                        $cell.Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Yellow)
-                    }
+                    $cellA = $worksheet.Cells[$row, 1]
+                    $cellB = $worksheet.Cells[$row, 2]
+                    $cellA.Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                    $cellA.Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Yellow)
+                    $cellB.Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                    $cellB.Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Yellow)
                 }
                 continue
             } else {
+                $backgroundColor = $worksheetColorMap[$worksheet.Name]
+                $worksheet.TabColor = $backgroundColor
                 $worksheet.Cells["A1"].Value = "$originalName"
                 $worksheet.Cells["A1"].Style.Font.Bold = $true
                 $worksheet.Cells["A1"].Style.Font.Size = 12
                 $worksheet.Cells["A1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
-                $worksheet.Cells["A1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightBlue)
+                $worksheet.Cells["A1"].Style.Fill.BackgroundColor.SetColor($backgroundColor)
                 $worksheet.Cells["B1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
-                $worksheet.Cells["B1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightBlue)
+                $worksheet.Cells["B1"].Style.Fill.BackgroundColor.SetColor($backgroundColor)
             }
-
-            $worksheet.Cells["A2"].Style.Font.Bold = $true
-            $worksheet.Cells["A2"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
-            $worksheet.Cells["B2"].Style.Font.Bold = $true
-            $worksheet.Cells["B2"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
 
             if ($groupsWithNoUsers.Contains($originalName)) {
-                $worksheet.TabColor = [System.Drawing.Color]::Yellow
                 $worksheet.Cells["A2"].Value = "No Users"
-                $worksheet.Cells["A2"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Yellow)
-                $worksheet.Cells["B2"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Yellow)
-            } else {
-                $worksheet.Cells["A2"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
-                $worksheet.Cells["B2"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
             }
+            $worksheet.Cells["A2"].Style.Font.Bold = $true
+            $worksheet.Cells["A2"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+            $worksheet.Cells["A2"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
+            $worksheet.Cells["B2"].Style.Font.Bold = $true
+            $worksheet.Cells["B2"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+            $worksheet.Cells["B2"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
 
             for ($row = 1; $row -le $lastRow; $row++) {
                 $cell = $worksheet.Cells[$row, 1]
