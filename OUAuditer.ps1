@@ -318,12 +318,19 @@ function Invoke-OUAudit {
             Remove-Item -Path $excelFile -Force
         }
 
-        $groupsWithNoUsers | Export-Excel -Path $excelFile -WorksheetName "groups without users"
+        $summarySheetData = $excelData.GetEnumerator() | Sort-Object Key | ForEach-Object {
+            [PSCustomObject]@{
+                'Group Name'    = $_.Key
+                'Members Count' = $_.Value.Members.Count
+                'Folders Count' = $_.Value.Folders.Count
+            }
+        }
+        $summarySheetData | Export-Excel -Path $excelFile -WorksheetName "Summary"
+
         $usersHeader = [PSCustomObject]@{ Users = "Users" }
         $worksheetNameMap = @{}
         $worksheetColorMap = @{}
-        $sortedExcelData = $excelData.GetEnumerator() | Sort-Object Key
-        $sortedExcelData | ForEach-Object {
+        $excelData.GetEnumerator() | Sort-Object Key | ForEach-Object {
             if ($_.key.length -gt 31) {
                 $sheetName = $_.Key.Substring(0, [Math]::Min($_.Key.Length, 28)) + "..."
                 $worksheetNameMap[$sheetName] = $_.Key
@@ -365,15 +372,32 @@ function Invoke-OUAudit {
                 $worksheet.Name
             }
 
-            if ($worksheet.Name -eq "groups without users") {
-                $worksheet.TabColor = [System.Drawing.Color]::Yellow
-                for ($row = 1; $row -le $lastRow; $row++) {
-                    $cellA = $worksheet.Cells[$row, 1]
-                    $cellB = $worksheet.Cells[$row, 2]
-                    $cellA.Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
-                    $cellA.Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Yellow)
-                    $cellB.Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
-                    $cellB.Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Yellow)
+            if ($worksheet.Name -eq "Summary") {
+                $worksheet.Cells.AutoFitColumns()
+                $worksheet.TabColor = [System.Drawing.Color]::Orange
+
+                $worksheet.Cells["A1:C1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                $worksheet.Cells["A1:C1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
+                $worksheet.Cells["A1:C1"].Style.Font.Bold = $true
+                $worksheet.Cells["A1:C1"].Style.Border.Bottom.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
+                $worksheet.Cells["A1:C1"].Style.Border.Right.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
+
+                $worksheet.Cells["B2:B$lastRow"].Style.HorizontalAlignment = [OfficeOpenXml.Style.ExcelHorizontalAlignment]::Center
+                $worksheet.Cells["C2:C$lastRow"].Style.HorizontalAlignment = [OfficeOpenXml.Style.ExcelHorizontalAlignment]::Center
+
+                for ($row = 2; $row -le $lastRow; $row++) {
+                    $groupName = $worksheet.Cells[$row, 1].Text
+                    if ($worksheetColorMap.ContainsKey($groupName)) {
+                        $color = $worksheetColorMap[$groupName]
+                        $worksheet.Cells[$row, 1].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                        $worksheet.Cells[$row, 1].Style.Fill.BackgroundColor.SetColor($color)
+                        $worksheet.Cells[$row, 2].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                        $worksheet.Cells[$row, 2].Style.Fill.BackgroundColor.SetColor($color)
+                        $worksheet.Cells[$row, 3].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                        $worksheet.Cells[$row, 3].Style.Fill.BackgroundColor.SetColor($color)
+                    }
+                    $worksheet.Cells["A${row}:C${row}"].Style.Border.Bottom.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
+                    $worksheet.Cells["A${row}:C${row}"].Style.Border.Right.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
                 }
                 continue
             } else {
