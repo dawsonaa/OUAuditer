@@ -288,7 +288,7 @@ function Invoke-OUAudit {
                 }
             }
         } else {
-            Write-Host "`nSkipping folder permissions gathering.`n"
+            Write-Host "`nSkipping folder permissions retrieval.`n"
         }
     }
     catch {
@@ -471,12 +471,34 @@ function Invoke-OUAudit {
                     $worksheet.Cells["E6"].Value = "Note: Folder count is based on the specified depth and may not include all folders the group can access."
                     $worksheet.Cells["E6"].Style.Font.Italic = $true
                     $worksheet.Cells["E6"].Style.WrapText = $true
+
+                    $noteRow = 10
+                    $nextNoteRow = $noteRow + 1
+                    $noteColumn = "E"
+                    $nextNoteColumn = "G"
+                } else {
+                    $noteRow = 4
+                    $nextNoteRow = $noteRow + 2
+                    $noteColumn = "D"
+                    $nextNoteColumn = "F"
                 }
+
+                $worksheet.Cells["${noteColumn}${noteRow}:${nextNoteColumn}${nextNoteRow}"].Merge = $true
+                $worksheet.Cells["${noteColumn}${noteRow}"].Value = "Note: Group names are hyperlinks to their respective sheets."
+                $worksheet.Cells["${noteColumn}${noteRow}:${nextNoteColumn}${nextNoteRow}"].Style.Font.Italic = $true
+                $worksheet.Cells["${noteColumn}${noteRow}:${nextNoteColumn}${nextNoteRow}"].Style.WrapText = $true
 
                 for ($row = 2; $row -le $lastRow; $row++) {
                     $groupName = $worksheet.Cells[$row, 1].Text
-                    if ($worksheetColorMap.ContainsKey($groupName)) {
-                        $color = $worksheetColorMap[$groupName]
+
+                    $sheetName = if ($worksheetNameMap.Values -contains $groupName) {
+                        ($worksheetNameMap.GetEnumerator() | Where-Object { $_.Value -eq $groupName }).Key
+                    } else {
+                        $groupName
+                    }
+
+                    if ($worksheetColorMap.ContainsKey($sheetName)) {
+                        $color = $worksheetColorMap[$sheetName]
                         $worksheet.Cells[$row, 1].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
                         $worksheet.Cells[$row, 1].Style.Fill.BackgroundColor.SetColor($color)
                         $worksheet.Cells[$row, 2].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
@@ -486,6 +508,10 @@ function Invoke-OUAudit {
                             $worksheet.Cells[$row, 3].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
                             $worksheet.Cells[$row, 3].Style.Fill.BackgroundColor.SetColor($color)
                         }
+                    }
+
+                    if ($excelPackage.Workbook.Worksheets[$sheetName]) {
+                        $worksheet.Cells[$row, 1].Hyperlink = "#'$sheetName'!A1"
                     }
 
                     if ($IncludeFolderPermissions) {
@@ -508,6 +534,14 @@ function Invoke-OUAudit {
                 $worksheet.Cells["A1"].Style.Fill.BackgroundColor.SetColor($backgroundColor)
                 $worksheet.Cells["B1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
                 $worksheet.Cells["B1"].Style.Fill.BackgroundColor.SetColor($backgroundColor)
+
+                $worksheet.Cells["C1"].Value = "Back to Summary"
+                $worksheet.Cells["C1"].Hyperlink = "#'Summary'!A1"
+                $worksheet.Cells["C1"].Style.Font.Bold = $true
+                $worksheet.Cells["C1"].Style.Font.UnderLine = $true
+                $worksheet.Cells["C1"].Style.Font.Color.SetColor([System.Drawing.Color]::White)
+                $worksheet.Cells["C1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                $worksheet.Cells["C1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Red)
             }
 
             if ($groupsWithNoUsers.Contains($originalName)) {
@@ -616,7 +650,7 @@ try {
     $folderPermissionsCheckbox.Checked = $true
     $folderPermissionsCheckbox.Add_CheckedChanged({
         if (!$folderPermissionsCheckbox.Checked) {
-            $filePathTextBox.Text = "Folder access data will not be gathered"
+            $filePathTextBox.Text = "Folder access data will not be retrieved"
             $filePathTextBox.Enabled = $false
             $fileDepthNumericUpDown.Enabled = $false
 
