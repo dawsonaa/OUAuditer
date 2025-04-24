@@ -1,3 +1,4 @@
+# OU Auditer
 # Author: Dawson Adams (dawsonaa@ksu.edu, https://github.com/dawsonaa)
 # Organization: Kansas State University
 Add-Type -AssemblyName System.Windows.Forms
@@ -111,7 +112,7 @@ function Add-LegendSheet {
     $excelPackage = Open-ExcelPackage -Path $excelFile
 
     $legendSheet = $excelPackage.Workbook.Worksheets.Add("Legend")
-    $legendSheet.TabColor = [System.Drawing.Color]::Green
+    $legendSheet.TabColor = [System.Drawing.Color]::MediumPurple
 
     $legendSheet.Cells["A1"].Value = "Active Directory Organizational Unit Audit - $departmentName - $formattedDate"
     $legendSheet.Cells["A1"].Style.Font.Bold = $true
@@ -203,6 +204,7 @@ function Invoke-OUAudit {
         $distinguishedName = $formTag.DistinguishedName
         $folderPath = $formTag.FolderPath
         $folderDepth = $formTag.FolderDepth
+        $includeFolderPermissions = $formTag.IncludeFolderPermissions
 
         if ($distinguishedName) {
             Write-Host "Attempting to retrieve groups from: $distinguishedName"
@@ -278,11 +280,15 @@ function Invoke-OUAudit {
             $allGroupNames += $groupName
         }
 
-        $folderAccessResults = Get-FolderAccess -groupNames $allGroupNames -folderPath $folderPath -folderDepth $folderDepth
-        foreach ($groupName in $allGroupNames) {
-            if ($folderAccessResults.ContainsKey($groupName)) {
-                $excelData[$groupName].Folders = $folderAccessResults[$groupName]
+        if ($includeFolderPermissions) {
+            $folderAccessResults = Get-FolderAccess -groupNames $allGroupNames -folderPath $folderPath -folderDepth $folderDepth
+            foreach ($groupName in $allGroupNames) {
+                if ( $folderAccessResults.ContainsKey($groupName)) {
+                    $excelData[$groupName].Folders = $folderAccessResults[$groupName]
+                }
             }
+        } else {
+            Write-Host "`nSkipping folder permissions retrieval.`n"
         }
     }
     catch {
@@ -317,13 +323,55 @@ function Invoke-OUAudit {
             Remove-Item -Path $excelFile -Force
         }
 
-        $groupsWithNoUsers | Export-Excel -Path $excelFile -WorksheetName "groups without users"
+        $summarySheetData = $excelData.GetEnumerator() | Sort-Object Key | ForEach-Object {
+            $data = [PSCustomObject]@{
+                'Group Name'    = $_.Key
+                'Members Count' = $_.Value.Members.Count
+            }
+            if ($includeFolderPermissions) {
+                $data | Add-Member -MemberType NoteProperty -Name 'Folders Count' -Value $_.Value.Folders.Count
+            }
+            $data
+        }
+        $summarySheetData | Export-Excel -Path $excelFile -WorksheetName "Summary"
+
         $usersHeader = [PSCustomObject]@{ Users = "Users" }
-        $sortedExcelData = $excelData.GetEnumerator() | Sort-Object Key
-        $sortedExcelData | ForEach-Object {
-            $sheetName = $_.Key
+        $worksheetNameMap = @{}
+        $worksheetColorMap = @{}
+        $excelData.GetEnumerator() | Sort-Object Key | ForEach-Object {
+            if ($_.key.length -gt 31) {
+                $sheetName = $_.Key.Substring(0, [Math]::Min($_.Key.Length, 28)) + "..."
+                $worksheetNameMap[$sheetName] = $_.Key
+            } else {
+                $sheetName = $_.Key
+            }
             $members = $_.Value.Members | Sort-Object
             $folders = $_.Value.Folders | Sort-Object
+
+            if (!$includeFolderPermissions) {
+                if ($members.Count -eq 0) {
+                    $worksheetColorMap[$sheetName] = [System.Drawing.Color]::Yellow
+                } else {
+                    $worksheetColorMap[$sheetName] = [System.Drawing.Color]::LightSkyBlue
+                }
+            } else {
+                if ($members.Count -eq 0 -and $folders.Count -eq 0)
+                {
+                    $worksheetColorMap[$sheetName] = [System.Drawing.Color]::Orange
+                }
+                elseif ($members.Count -eq 0)
+                {
+                    $worksheetColorMap[$sheetName] = [System.Drawing.Color]::Yellow
+                }
+                elseif ($folders.Count -eq 0)
+                {
+                    $worksheetColorMap[$sheetName] = [System.Drawing.Color]::LightSkyBlue
+                }
+                else
+                {
+                    $worksheetColorMap[$sheetName] = [System.Drawing.Color]::LightGreen
+                }
+            }
 
             $worksheetExists = $false
             if (Test-Path $excelFile) {
@@ -333,41 +381,178 @@ function Invoke-OUAudit {
             }
 
             if ($members.Count -ne 0) {
-                $usersHeader | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append:$worksheetExists
+                $usersHeader | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append:$worksheetExists -StartRow 2
             }
-            $members | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append:$worksheetExists -StartRow 2
-            $folders | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append:$worksheetExists -StartRow ($members.Count + 3)
+            $members | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append:$worksheetExists -StartRow 3
+            $folders | Export-Excel -Path $excelFile -WorksheetName $sheetName -Append:$worksheetExists -StartRow ($members.Count + 4)
         }
 
         $excelPackage = Open-ExcelPackage -Path $excelFile
         foreach ($worksheet in $excelPackage.Workbook.Worksheets) {
             $lastRow = $worksheet.Dimension.End.Row
-            if ($worksheet.Name -eq "groups without users") {
-                $worksheet.TabColor = [System.Drawing.Color]::Yellow
-                for ($row = 1; $row -le $lastRow; $row++) {
-                    $cell = $worksheet.Cells[$row, 1]
-                    if (-not [string]::IsNullOrWhiteSpace($cell.Text)) {
-                        $cell.Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
-                        $cell.Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Yellow)
+
+            $originalName = if ($worksheetNameMap.ContainsKey($worksheet.Name)) {
+                $worksheetNameMap[$worksheet.Name]
+            } else {
+                $worksheet.Name
+            }
+
+            if ($worksheet.Name -eq "Summary") {
+                $worksheet.TabColor = [System.Drawing.Color]::Red
+
+                if ($includeFolderPermissions) {
+                    $headerRange = "A1:C1"
+                    $membersColumn = "B"
+                    $foldersColumn = "C"
+                } else {
+                    $headerRange = "A1:B1"
+                    $membersColumn = "B"
+                    $foldersColumn = $null
+                }
+
+                $worksheet.Cells[$headerRange].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                $worksheet.Cells[$headerRange].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
+                $worksheet.Cells[$headerRange].Style.Font.Bold = $true
+                $worksheet.Cells[$headerRange].Style.Border.Bottom.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
+                $worksheet.Cells[$headerRange].Style.Border.Right.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
+
+                $worksheet.Cells["${membersColumn}2:${membersColumn}$lastRow"].Style.HorizontalAlignment = [OfficeOpenXml.Style.ExcelHorizontalAlignment]::Center
+
+                if ($foldersColumn) {
+                    $worksheet.Cells["${foldersColumn}2:${foldersColumn}$lastRow"].Style.HorizontalAlignment = [OfficeOpenXml.Style.ExcelHorizontalAlignment]::Center
+                }
+
+                if ($includeFolderPermissions) {
+                    $worksheet.Cells["E1"].Value = "Key"
+                    $worksheet.Cells["E1"].Style.Font.Bold = $true
+                    $worksheet.Cells["E1:F1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                    $worksheet.Cells["E1:F1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
+
+                    $worksheet.Cells["E2"].Value = "No Users and No Folders"
+                    $worksheet.Cells["E2:F2"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                    $worksheet.Cells["E2:F2"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Orange)
+
+                    $worksheet.Cells["E3"].Value = "No Users"
+                    $worksheet.Cells["E3:F3"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                    $worksheet.Cells["E3:F3"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Yellow)
+
+                    $worksheet.Cells["E4"].Value = "No Folders"
+                    $worksheet.Cells["E4:F4"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                    $worksheet.Cells["E4:F4"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightSkyBlue)
+
+                    $worksheet.Cells["E5"].Value = "Has Users and Folders"
+                    $worksheet.Cells["E5:F5"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                    $worksheet.Cells["E5:F5"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGreen)
+
+                    $worksheet.Cells["E1:F5"].Style.Border.Bottom.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
+                    $worksheet.Cells["E1:E5"].Style.Border.Left.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
+                    $worksheet.Cells["F1:F5"].Style.Border.Right.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
+                } else {
+                    $worksheet.Cells["D1"].Value = "Key"
+                    $worksheet.Cells["D1"].Style.Font.Bold = $true
+                    $worksheet.Cells["D1:E1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                    $worksheet.Cells["D1:E1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
+
+                    $worksheet.Cells["D2"].Value = "No Users"
+                    $worksheet.Cells["D2:E2"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                    $worksheet.Cells["D2:E2"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Yellow)
+
+                    $worksheet.Cells["D3"].Value = "Has Users"
+                    $worksheet.Cells["D3:E3"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                    $worksheet.Cells["D3:E3"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightSkyBlue)
+
+                    $worksheet.Cells["D1:E3"].Style.Border.Bottom.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
+                    $worksheet.Cells["D1:D3"].Style.Border.Left.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
+                    $worksheet.Cells["E1:E3"].Style.Border.Right.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
+                }
+
+                if ($includeFolderPermissions) {
+                    $worksheet.Cells["E6:G8"].Merge = $true
+                    $worksheet.Cells["E6"].Value = "Note: Folder count is based on the specified depth and may not include all folders the group can access."
+                    $worksheet.Cells["E6"].Style.Font.Italic = $true
+                    $worksheet.Cells["E6"].Style.WrapText = $true
+
+                    $noteRow = 10
+                    $nextNoteRow = $noteRow + 1
+                    $noteColumn = "E"
+                    $nextNoteColumn = "G"
+                } else {
+                    $noteRow = 4
+                    $nextNoteRow = $noteRow + 2
+                    $noteColumn = "D"
+                    $nextNoteColumn = "F"
+                }
+
+                $worksheet.Cells["${noteColumn}${noteRow}:${nextNoteColumn}${nextNoteRow}"].Merge = $true
+                $worksheet.Cells["${noteColumn}${noteRow}"].Value = "Note: Group names are hyperlinks to their respective sheets."
+                $worksheet.Cells["${noteColumn}${noteRow}:${nextNoteColumn}${nextNoteRow}"].Style.Font.Italic = $true
+                $worksheet.Cells["${noteColumn}${noteRow}:${nextNoteColumn}${nextNoteRow}"].Style.WrapText = $true
+
+                for ($row = 2; $row -le $lastRow; $row++) {
+                    $groupName = $worksheet.Cells[$row, 1].Text
+
+                    $sheetName = if ($worksheetNameMap.Values -contains $groupName) {
+                        ($worksheetNameMap.GetEnumerator() | Where-Object { $_.Value -eq $groupName }).Key
+                    } else {
+                        $groupName
+                    }
+
+                    if ($worksheetColorMap.ContainsKey($sheetName)) {
+                        $color = $worksheetColorMap[$sheetName]
+                        $worksheet.Cells[$row, 1].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                        $worksheet.Cells[$row, 1].Style.Fill.BackgroundColor.SetColor($color)
+                        $worksheet.Cells[$row, 2].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                        $worksheet.Cells[$row, 2].Style.Fill.BackgroundColor.SetColor($color)
+
+                        if ($IncludeFolderPermissions) {
+                            $worksheet.Cells[$row, 3].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                            $worksheet.Cells[$row, 3].Style.Fill.BackgroundColor.SetColor($color)
+                        }
+                    }
+
+                    if ($excelPackage.Workbook.Worksheets[$sheetName]) {
+                        $worksheet.Cells[$row, 1].Hyperlink = "#'$sheetName'!A1"
+                    }
+
+                    if ($IncludeFolderPermissions) {
+                        $worksheet.Cells["A${row}:C${row}"].Style.Border.Bottom.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
+                        $worksheet.Cells["A${row}:C${row}"].Style.Border.Right.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
+                    } else {
+                        $worksheet.Cells["A${row}:B${row}"].Style.Border.Bottom.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
+                        $worksheet.Cells["A${row}:B${row}"].Style.Border.Right.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
                     }
                 }
+                $worksheet.Cells.AutoFitColumns()
                 continue
-            }
-
-            $worksheet.Cells["A1"].Style.Font.Bold = $true
-            $worksheet.Cells["A1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
-            $worksheet.Cells["B1"].Style.Font.Bold = $true
-            $worksheet.Cells["B1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
-
-            if ($groupsWithNoUsers.Contains($worksheet.Name)) {
-                $worksheet.TabColor = [System.Drawing.Color]::Yellow
-                $worksheet.Cells["A1"].Value = "No Users"
-                $worksheet.Cells["A1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Yellow)
-                $worksheet.Cells["B1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Yellow)
             } else {
-                $worksheet.Cells["A1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
-                $worksheet.Cells["B1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
+                $backgroundColor = $worksheetColorMap[$worksheet.Name]
+                $worksheet.TabColor = $backgroundColor
+                $worksheet.Cells["A1"].Value = "$originalName"
+                $worksheet.Cells["A1"].Style.Font.Bold = $true
+                $worksheet.Cells["A1"].Style.Font.Size = 12
+                $worksheet.Cells["A1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                $worksheet.Cells["A1"].Style.Fill.BackgroundColor.SetColor($backgroundColor)
+                $worksheet.Cells["B1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                $worksheet.Cells["B1"].Style.Fill.BackgroundColor.SetColor($backgroundColor)
+
+                $worksheet.Cells["C1"].Value = "Back to Summary"
+                $worksheet.Cells["C1"].Hyperlink = "#'Summary'!A1"
+                $worksheet.Cells["C1"].Style.Font.Bold = $true
+                $worksheet.Cells["C1"].Style.Font.UnderLine = $true
+                $worksheet.Cells["C1"].Style.Font.Color.SetColor([System.Drawing.Color]::White)
+                $worksheet.Cells["C1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                $worksheet.Cells["C1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Red)
             }
+
+            if ($groupsWithNoUsers.Contains($originalName)) {
+                $worksheet.Cells["A2"].Value = "No Users"
+            }
+            $worksheet.Cells["A2"].Style.Font.Bold = $true
+            $worksheet.Cells["A2"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+            $worksheet.Cells["A2"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
+            $worksheet.Cells["B2"].Style.Font.Bold = $true
+            $worksheet.Cells["B2"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+            $worksheet.Cells["B2"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
 
             for ($row = 1; $row -le $lastRow; $row++) {
                 $cell = $worksheet.Cells[$row, 1]
@@ -426,12 +611,12 @@ try {
     }
     $form.Controls.Add($listView)
 
-    $textBox = New-Object System.Windows.Forms.TextBox
-    $textBox.Size = New-Object System.Drawing.Size(360, 20)
-    $textBox.Location = New-Object System.Drawing.Point(10, 320)
-    $textBox.Text = "Folder Path"
-    $textBox.Enabled = $false
-    $form.Controls.Add($textBox)
+    $filePathTextBox = New-Object System.Windows.Forms.TextBox
+    $filePathTextBox.Size = New-Object System.Drawing.Size(337, 20)
+    $filePathTextBox.Location = New-Object System.Drawing.Point(10, 320)
+    $filePathTextBox.Text = "Folder Path"
+    $filePathTextBox.Enabled = $false
+    $form.Controls.Add($filePathTextBox)
 
     $label = New-Object System.Windows.Forms.Label
     $label.Text = "Folder Depth"
@@ -439,24 +624,58 @@ try {
     $label.Location = New-Object System.Drawing.Point(10, 355)
     $form.Controls.Add($label)
 
-    $numericUpDown = New-Object System.Windows.Forms.NumericUpDown
-    $numericUpDown.Size = New-Object System.Drawing.Size(60, 20)
-    $numericUpDown.Location = New-Object System.Drawing.Point(85, 350)
-    $numericUpDown.Minimum = 0
-    $numericUpDown.Maximum = 10
-    $numericUpDown.Value = 2
-    $form.Controls.Add($numericUpDown)
-
     $depthLabel = New-Object System.Windows.Forms.Label
     $depthLabel.Size = New-Object System.Drawing.Size(100, 20)
     $depthLabel.Location = New-Object System.Drawing.Point(10, 375)
     $depthLabel.ForeColor = [System.Drawing.Color]::Gray
-    $depthLabel.Text = ("\x" * $numericUpDown.Value)
+    $depthLabel.Text = ("\x" * $fileDepthNumericUpDown.Value)
     $form.Controls.Add($depthLabel)
 
-    $numericUpDown.Add_ValueChanged({
-        $depthLabel.Text = ("\x" * $numericUpDown.Value)
+    $fileDepthNumericUpDown = New-Object System.Windows.Forms.NumericUpDown
+    $fileDepthNumericUpDown.Size = New-Object System.Drawing.Size(60, 20)
+    $fileDepthNumericUpDown.Location = New-Object System.Drawing.Point(85, 350)
+    $fileDepthNumericUpDown.Minimum = 0
+    $fileDepthNumericUpDown.Maximum = 10
+    $fileDepthNumericUpDown.Value = 2
+    $fileDepthNumericUpDown.Add_ValueChanged({
+        $depthLabel.Text = ("\x" * $fileDepthNumericUpDown.Value)
     })
+    $form.Controls.Add($fileDepthNumericUpDown)
+
+    $previousNumericValue = $fileDepthNumericUpDown.Value
+
+    $folderPermissionsCheckbox = New-Object System.Windows.Forms.CheckBox
+    $folderPermissionsCheckbox.Size = New-Object System.Drawing.Size(20, 20)
+    $folderPermissionsCheckbox.Location = New-Object System.Drawing.Point(($filePathTextBox.Location.X + $filePathTextBox.Width + 10), $filePathTextBox.Location.Y)
+    $folderPermissionsCheckbox.Checked = $true
+    $folderPermissionsCheckbox.Add_CheckedChanged({
+        if (!$folderPermissionsCheckbox.Checked) {
+            $filePathTextBox.Text = "Folder access data will not be retrieved"
+            $filePathTextBox.Enabled = $false
+            $fileDepthNumericUpDown.Enabled = $false
+
+            $previousNumericValue = $fileDepthNumericUpDown.Value
+            $fileDepthNumericUpDown.Value = 0
+        } else {
+            if ($listView.SelectedItems.Count -gt 0) {
+                $selectedTag = $listView.SelectedItems[0].Tag
+                if ($selectedTag -and $selectedTag.Properties -and $selectedTag.Properties['distinguishedname'] -and $selectedTag.Properties['distinguishedname'].Count -gt 0) {
+                    $department = $selectedTag.Properties['distinguishedname'][0] -split ',' | Select-Object -First 1
+                    $departmentName = $department -split '=' | Select-Object -Last 1
+                    $filePathTextBox.Text = "\\catfiles.users.campus\workarea$\" + $departmentName
+                    $filePathTextBox.Enabled = $true
+                    $runAuditButton.Enabled = $true
+                }
+            } else {
+                $filePathTextBox.Text = "Folder Path"
+                $filePathTextBox.Enabled = $false
+                $runAuditButton.Enabled = $false
+            }
+            $fileDepthNumericUpDown.Enabled = $true
+            $fileDepthNumericUpDown.Value = $previousNumericValue
+        }
+    })
+    $form.Controls.Add($folderPermissionsCheckbox)
 
     $runAuditButton = New-Object System.Windows.Forms.Button
     $runAuditButton.Text = "Run Audit"
@@ -475,8 +694,9 @@ try {
         if ($selectedTag -and $selectedTag.Properties -and $selectedTag.Properties['distinguishedname'] -and $selectedTag.Properties['distinguishedname'].Count -gt 0) {
             $form.Tag = @{
                 DistinguishedName = $selectedTag.Properties['distinguishedname'][0]
-                FolderPath = $textBox.Text
-                FolderDepth = $numericUpDown.Value
+                FolderPath = $filePathTextBox.Text
+                FolderDepth = $fileDepthNumericUpDown.Value
+                IncludeFolderPermissions = $folderPermissionsCheckbox.Checked
             }
             $form.Hide()
             Invoke-OUAudit -formTag $form.Tag
@@ -510,9 +730,12 @@ try {
             if ($selectedTag -and $selectedTag.Properties -and $selectedTag.Properties['distinguishedname'] -and $selectedTag.Properties['distinguishedname'].Count -gt 0) {
                 $department = $selectedTag.Properties['distinguishedname'][0] -split ',' | Select-Object -First 1
                 $departmentName = $department -split '=' | Select-Object -Last 1
-                $textBox.Text = "\\catfiles.users.campus\workarea$\" + $departmentName
-                $textBox.Enabled = $true
                 $runAuditButton.Enabled = $true
+
+                if ($folderPermissionsCheckbox.Checked) {
+                    $filePathTextBox.Text = "\\catfiles.users.campus\workarea$\" + $departmentName
+                    $filePathTextBox.Enabled = $true
+                }
             }
         }
     })
