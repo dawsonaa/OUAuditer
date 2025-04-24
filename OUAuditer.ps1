@@ -341,13 +341,13 @@ function Invoke-OUAudit {
             $folders = $_.Value.Folders | Sort-Object
 
             if ($members.Count -eq 0 -and $folders.Count -eq 0) {
-                $worksheetColorMap[$sheetName] = [System.Drawing.Color]::DarkOrange
+                $worksheetColorMap[$sheetName] = [System.Drawing.Color]::Orange
             } elseif ($members.Count -eq 0) {
-                $worksheetColorMap[$sheetName] = [System.Drawing.Color]::Gold
+                $worksheetColorMap[$sheetName] = [System.Drawing.Color]::Yellow
             } elseif ($folders.Count -eq 0) {
                 $worksheetColorMap[$sheetName] = [System.Drawing.Color]::LightSkyBlue
             } else {
-                $worksheetColorMap[$sheetName] = [System.Drawing.Color]::DarkSeaGreen
+                $worksheetColorMap[$sheetName] = [System.Drawing.Color]::LightGreen
             }
 
             $worksheetExists = $false
@@ -391,28 +391,31 @@ function Invoke-OUAudit {
                 $worksheet.Cells["E1:F1"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
                 $worksheet.Cells["E1:F1"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGray)
 
-                $worksheet.Cells["E2"].Value = "No Users"
+                $worksheet.Cells["E2"].Value = "No Users and No Folders"
                 $worksheet.Cells["E2:F2"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
-                $worksheet.Cells["E2:F2"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Yellow)
+                $worksheet.Cells["E2:F2"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Orange)
 
-                $worksheet.Cells["E3"].Value = "No Folders"
+                $worksheet.Cells["E3"].Value = "No Users"
                 $worksheet.Cells["E3:F3"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
-                $worksheet.Cells["E3:F3"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightBlue)
+                $worksheet.Cells["E3:F3"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Yellow)
 
-                $worksheet.Cells["E4"].Value = "Users and Folders"
+                $worksheet.Cells["E4"].Value = "No Folders"
                 $worksheet.Cells["E4:F4"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
-                $worksheet.Cells["E4:F4"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGreen)
+                $worksheet.Cells["E4:F4"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightBlue)
 
-                $worksheet.Cells["E1:E4"].Style.Border.Bottom.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
-                $worksheet.Cells["E1:E4"].Style.Border.Left.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
+                $worksheet.Cells["E5"].Value = "Users and Folders"
+                $worksheet.Cells["E5:F5"].Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
+                $worksheet.Cells["E5:F5"].Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::LightGreen)
 
-                $worksheet.Cells["F1:F4"].Style.Border.Bottom.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
-                $worksheet.Cells["F1:F4"].Style.Border.Right.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
+                $worksheet.Cells["E1:F5"].Style.Border.Bottom.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
+                $worksheet.Cells["E1:E5"].Style.Border.Left.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
 
-                $worksheet.Cells["E5:G7"].Merge = $true
-                $worksheet.Cells["E5"].Value = "Note: Folder count is based on the specified depth and may not include all folders the group can access."
-                $worksheet.Cells["E5"].Style.Font.Italic = $true
-                $worksheet.Cells["E5"].Style.WrapText = $true
+                $worksheet.Cells["F1:F5"].Style.Border.Right.Style = [OfficeOpenXml.Style.ExcelBorderStyle]::Thin
+
+                $worksheet.Cells["E6:G8"].Merge = $true
+                $worksheet.Cells["E6"].Value = "Note: Folder count is based on the specified depth and may not include all folders the group can access."
+                $worksheet.Cells["E6"].Style.Font.Italic = $true
+                $worksheet.Cells["E6"].Style.WrapText = $true
 
                 for ($row = 2; $row -le $lastRow; $row++) {
                     $groupName = $worksheet.Cells[$row, 1].Text
