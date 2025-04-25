@@ -1,6 +1,6 @@
 # <img src="icon.ico" alt="Icon" height="32" style="vertical-align: middle;"> <span style="vertical-align: middle;">OU Auditer</span>  <img src="icon.ico" alt="Icon" height="32" style="vertical-align: middle;">
 
-## By Dawson Adams (dawsonaa@ksu.edu) at Kansas State university </span>
+## By Dawson Adams (dawsonaa@ksu.edu) at Kansas State University </span>
 
 ## Overview
 This PowerShell script exports Active Directory (AD) group memberships for a specified Organizational Unit (OU). Additionally, it retrieves W drive folder access permissions associated with these groups and their members. This audit ensures that groups provide the intended access and verifies group membership accuracy.
