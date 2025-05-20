@@ -26,7 +26,14 @@ function Get-FolderAccess {
     Write-Host "`nGetting folder access for groups: $($groupNames -join ', ')`nFolder Path: $folderPath`nFolder Depth: $folderDepth"
     $startTime = [DateTime]::Now.Ticks
     $accessList = @{}
-    $rootAcl = Get-Acl -Path $folderPath
+
+    try {
+        $rootAcl = Get-Acl -Path $folderPath -ErrorAction Stop
+    }
+    catch {
+        Write-Host "Error retrieving ACL for root folder: $_" -ForegroundColor Red
+        return $false
+    }
     $rootGroups = $rootAcl.Access | ForEach-Object { $_.IdentityReference.Value }
 
     foreach ($groupName in $groupNames) {
@@ -282,10 +289,15 @@ function Invoke-OUAudit {
 
         if ($includeFolderPermissions) {
             $folderAccessResults = Get-FolderAccess -groupNames $allGroupNames -folderPath $folderPath -folderDepth $folderDepth
+            if ($folderAccessResults -eq $false) {
+                Write-Host "Cancelling Operation.`n" -ForegroundColor Red
+                return
+            }
+
             foreach ($groupName in $allGroupNames) {
                 if ( $folderAccessResults.ContainsKey($groupName)) {
                     $excelData[$groupName].Folders = $folderAccessResults[$groupName]
-                }
+                    }
             }
         } else {
             Write-Host "`nSkipping folder permissions retrieval.`n"

@@ -14,7 +14,6 @@ Section "Install OU Auditer"
     SetOutPath $INSTDIR
     File "..\icon.ico"
     File "..\OUAuditer.ps1"
-    File "..\LICENSE"
     File "..\README.md"
 
     StrCpy $PROFILE_PATH $INSTDIR
