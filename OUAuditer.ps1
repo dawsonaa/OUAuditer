@@ -615,6 +615,7 @@ try {
     $listView.View = [System.Windows.Forms.View]::List
     $listView.Size = New-Object System.Drawing.Size(360, 300)
     $listView.Location = New-Object System.Drawing.Point(10, 10)
+    $listView.MultiSelect = $true
 
     $OUs | Sort-Object { $_.Properties.name[0] } | ForEach-Object {
         $item = New-Object System.Windows.Forms.ListViewItem($_.Properties.name[0].ToString())
@@ -701,22 +702,59 @@ try {
             Write-Host "No item selected inside the OK button click event."
             return
         }
-        $selectedTag = $listView.SelectedItems[0].Tag
 
-        if ($selectedTag -and $selectedTag.Properties -and $selectedTag.Properties['distinguishedname'] -and $selectedTag.Properties['distinguishedname'].Count -gt 0) {
-            $form.Tag = @{
-                DistinguishedName = $selectedTag.Properties['distinguishedname'][0]
-                FolderPath = $filePathTextBox.Text
-                FolderDepth = $fileDepthNumericUpDown.Value
-                IncludeFolderPermissions = $folderPermissionsCheckbox.Checked
+        $exportsFolder = $null
+
+        # Create parent and date-based folders only if multiple items are selected
+
+        Write-Host "List view selected items count: $($listView.SelectedItems.Count)"
+        if ($listView.SelectedItems.Count -gt 1) {
+            $parentFolder = Join-Path $PSScriptRoot "0 - Multiple Departments"
+            if (-not (Test-Path -Path $parentFolder)) {
+                New-Item -Path $parentFolder -ItemType Directory | Out-Null
             }
-            $form.Hide()
-            Invoke-OUAudit -formTag $form.Tag
-            $form.Show()
+
+            $currentDate = Get-Date -Format "yyyy-MM-dd"
+            $exportsFolder = Join-Path $parentFolder $currentDate
+            if (-not (Test-Path -Path $exportsFolder)) {
+                New-Item -Path $exportsFolder -ItemType Directory | Out-Null
+            }
         }
-        else {
-            Write-Host "Selected item does not have a valid distinguished name."
+
+        # Process each selected item
+        foreach ($selectedItem in $listView.SelectedItems) {
+            $selectedTag = $selectedItem.Tag
+
+            if ($selectedTag -and $selectedTag.Properties -and $selectedTag.Properties['distinguishedname'] -and $selectedTag.Properties['distinguishedname'].Count -gt 0) {
+                $departmentName = ($selectedTag.Properties['distinguishedname'][0] -split ',' | Select-Object -First 1) -split '=' | Select-Object -Last 1
+                $departmentFolder = if ($exportsFolder) {
+                    Join-Path $exportsFolder $departmentName
+                } else {
+                    Join-Path $PSScriptRoot "Exports\$departmentName"
+                }
+
+                if (-not (Test-Path -Path $departmentFolder)) {
+                    New-Item -Path $departmentFolder -ItemType Directory | Out-Null
+                }
+
+                $form.Tag = @{
+                    DistinguishedName = $selectedTag.Properties['distinguishedname'][0]
+                    FolderPath = $filePathTextBox.Text
+                    FolderDepth = $fileDepthNumericUpDown.Value
+                    IncludeFolderPermissions = $folderPermissionsCheckbox.Checked
+                    ExportFolder = $departmentFolder
+                }
+
+                # Hide the form and invoke the audit for the current department
+                $form.Hide()
+                Invoke-OUAudit -formTag $form.Tag
+            } else {
+                Write-Host "Selected item does not have a valid distinguished name."
+            }
         }
+
+        # Show the form again after processing all items
+        $form.Show()
     })
     $form.Controls.Add($runAuditButton)
 
